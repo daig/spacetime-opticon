@@ -54,25 +54,37 @@ struct ARSceneDepthView: UIViewRepresentable {
             let colorKernel = CIColorKernel(source:
                 """
                 kernel vec4 depthToColor(__sample depth) {
-                    float normalizedDepth = depth.r; // Depth is usually stored in the red channel
+                    float rawDepth = depth.r; // Depth is usually stored in the red channel
+                    
+                    // Scale depth values for better visualization up to 10 feet (approx 3 meters)
+                    // ARKit depth values are in meters, so 3.0 represents approximately 10 feet
+                    float maxDepthInMeters = 3.0;
+                    
+                    // Normalize the depth to 0-1 range capped at our maximum distance
+                    float normalizedDepth = clamp(rawDepth / maxDepthInMeters, 0.0, 1.0);
                     
                     // Create a heat map color scheme
                     vec4 color;
                     if (normalizedDepth < 0.2) {
-                        // Blue to cyan
+                        // Blue to cyan - closest objects (0-2 feet)
                         color = mix(vec4(0.0, 0.0, 1.0, 1.0), vec4(0.0, 1.0, 1.0, 1.0), normalizedDepth * 5.0);
                     } else if (normalizedDepth < 0.4) {
-                        // Cyan to green
+                        // Cyan to green (2-4 feet)
                         color = mix(vec4(0.0, 1.0, 1.0, 1.0), vec4(0.0, 1.0, 0.0, 1.0), (normalizedDepth - 0.2) * 5.0);
                     } else if (normalizedDepth < 0.6) {
-                        // Green to yellow
+                        // Green to yellow (4-6 feet)
                         color = mix(vec4(0.0, 1.0, 0.0, 1.0), vec4(1.0, 1.0, 0.0, 1.0), (normalizedDepth - 0.4) * 5.0);
                     } else if (normalizedDepth < 0.8) {
-                        // Yellow to red
+                        // Yellow to red (6-8 feet)
                         color = mix(vec4(1.0, 1.0, 0.0, 1.0), vec4(1.0, 0.0, 0.0, 1.0), (normalizedDepth - 0.6) * 5.0);
                     } else {
-                        // Red to white
+                        // Red to white (8-10 feet)
                         color = mix(vec4(1.0, 0.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0), (normalizedDepth - 0.8) * 5.0);
+                    }
+                    
+                    // Add transparency for very distant objects (beyond our max depth)
+                    if (rawDepth > maxDepthInMeters) {
+                        color.a = 0.3; // Make distant objects more transparent
                     }
                     
                     return color;
