@@ -87,3 +87,13 @@ iOSInjectionProject/
 
 # macOS
 .DS_Store
+
+
+# Xcode
+*.xcuserdatad/
+*.xcuserdata/
+*.xcuserdata/
+*.xcuserdata/
+*.xcuserdata/
+*.xcuserdata/
+.vscode/
