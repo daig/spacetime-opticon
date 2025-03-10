@@ -6,8 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CC06220C2D7F209F00446469 /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC06220B2D7F209F00446469 /* ARKit.framework */; };
+		CC06220E2D7F20AD00446469 /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC06220D2D7F20AD00446469 /* RealityKit.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		CC0621C42D7E183900446469 /* spacetime-mic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "spacetime-mic.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC06220B2D7F209F00446469 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
+		CC06220D2D7F20AD00446469 /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +30,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC06220E2D7F20AD00446469 /* RealityKit.framework in Frameworks */,
+				CC06220C2D7F209F00446469 /* ARKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +42,7 @@
 			isa = PBXGroup;
 			children = (
 				CC0621C62D7E183900446469 /* spacetime-mic */,
+				CC06220A2D7F209F00446469 /* Frameworks */,
 				CC0621C52D7E183900446469 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +53,15 @@
 				CC0621C42D7E183900446469 /* spacetime-mic.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		CC06220A2D7F209F00446469 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				CC06220D2D7F20AD00446469 /* RealityKit.framework */,
+				CC06220B2D7F209F00446469 /* ARKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -255,10 +274,12 @@
 				DEVELOPMENT_TEAM = 8DWR7MSCR6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture depth data for AR functionality.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs access to the microphone to record audio from your external audio interface.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arkit;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -289,10 +310,12 @@
 				DEVELOPMENT_TEAM = 8DWR7MSCR6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture depth data for AR functionality.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs access to the microphone to record audio from your external audio interface.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arkit;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
