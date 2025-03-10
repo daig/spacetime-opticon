@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import ARKit
 import RealityKit
 
@@ -24,17 +25,27 @@ struct ARSceneDepthView: UIViewRepresentable {
             // Apply heat map colorization for better depth visualization
             if let colorizedDepthImage = applyHeatMapToDepthImage(ciImage) {
                 DispatchQueue.main.async {
-                    self.parent.depthImage = colorizedDepthImage
+                    // Correct orientation to match camera feed
+                    self.parent.depthImage = self.rotateImage(colorizedDepthImage, orientation: .right)
                 }
             } else {
                 // Fallback to regular depth image
                 let context = CIContext()
                 if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
                     DispatchQueue.main.async {
-                        self.parent.depthImage = UIImage(cgImage: cgImage)
+                        // Correct orientation to match camera feed
+                        self.parent.depthImage = self.rotateImage(UIImage(cgImage: cgImage), orientation: .right)
                     }
                 }
             }
+        }
+        
+        // Rotates an image to match the camera feed orientation
+        private func rotateImage(_ image: UIImage, orientation: UIImage.Orientation) -> UIImage {
+            if let cgImage = image.cgImage {
+                return UIImage(cgImage: cgImage, scale: image.scale, orientation: orientation)
+            }
+            return image
         }
         
         // Applies a heat map coloring to a depth image
@@ -134,8 +145,9 @@ struct VideoRecordingView: View {
             }
             
             if hasCameraPermission {
-                // Display the AR scene depth view
+                // Display the AR scene depth view with proper overlay
                 ZStack {
+                    // AR view (camera feed)
                     ARSceneDepthView(isRecording: $isRecording, depthImage: $depthImage)
                         .frame(maxWidth: .infinity, maxHeight: 400)
                         .cornerRadius(12)
@@ -144,14 +156,15 @@ struct VideoRecordingView: View {
                                 .stroke(Color.gray, lineWidth: 1)
                         )
                     
-                    // Depth image overlay
+                    // Depth image overlay - fully overlapping with camera view
                     if let depthImage = depthImage {
                         Image(uiImage: depthImage)
                             .resizable()
-                            .scaledToFit()
+                            .aspectRatio(contentMode: .fill) // Changed from .fit to .fill
                             .frame(maxWidth: .infinity, maxHeight: 400)
                             .cornerRadius(12)
                             .opacity(0.7)
+                            .clipped() // Ensure it doesn't extend beyond bounds
                     }
                 }
                 .padding(.horizontal)
