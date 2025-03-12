@@ -1,141 +1,7 @@
 import SwiftUI
 import AVFoundation
+import UIKit
 import ARKit
-import RealityKit
-
-// MARK: - AR Camera View
-struct ARSceneDepthView: UIViewRepresentable {
-    @Binding var isRecording: Bool
-    @Binding var depthImage: UIImage?
-    
-    class Coordinator: NSObject, ARSessionDelegate {
-        var parent: ARSceneDepthView
-        
-        init(_ parent: ARSceneDepthView) {
-            self.parent = parent
-        }
-        
-        func session(_ session: ARSession, didUpdate frame: ARFrame) {
-            // Check if depth data is available
-            guard let depthData = frame.sceneDepth?.depthMap else { return }
-            
-            // Convert depth data to an image and display it
-            let ciImage = CIImage(cvPixelBuffer: depthData)
-            
-            // Apply heat map colorization for better depth visualization
-            if let colorizedDepthImage = applyHeatMapToDepthImage(ciImage) {
-                DispatchQueue.main.async {
-                    // Correct orientation to match camera feed
-                    self.parent.depthImage = self.rotateImage(colorizedDepthImage, orientation: .right)
-                }
-            } else {
-                // Fallback to regular depth image
-                let context = CIContext()
-                if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
-                    DispatchQueue.main.async {
-                        // Correct orientation to match camera feed
-                        self.parent.depthImage = self.rotateImage(UIImage(cgImage: cgImage), orientation: .right)
-                    }
-                }
-            }
-        }
-        
-        // Rotates an image to match the camera feed orientation
-        private func rotateImage(_ image: UIImage, orientation: UIImage.Orientation) -> UIImage {
-            if let cgImage = image.cgImage {
-                return UIImage(cgImage: cgImage, scale: image.scale, orientation: orientation)
-            }
-            return image
-        }
-        
-        // Applies a heat map coloring to a depth image
-        private func applyHeatMapToDepthImage(_ depthImage: CIImage) -> UIImage? {
-            // Create a color kernel to map depth values to colors
-            let colorKernel = CIColorKernel(source:
-                """
-                kernel vec4 depthToColor(__sample depth) {
-                    float rawDepth = depth.r; // Depth is usually stored in the red channel
-                    
-                    // Scale depth values for better visualization up to 10 feet (approx 3 meters)
-                    // ARKit depth values are in meters, so 3.0 represents approximately 10 feet
-                    float maxDepthInMeters = 3.0;
-                    
-                    // Normalize the depth to 0-1 range capped at our maximum distance
-                    float normalizedDepth = clamp(rawDepth / maxDepthInMeters, 0.0, 1.0);
-                    
-                    // Create a heat map color scheme
-                    vec4 color;
-                    if (normalizedDepth < 0.2) {
-                        // Blue to cyan - closest objects (0-2 feet)
-                        color = mix(vec4(0.0, 0.0, 1.0, 1.0), vec4(0.0, 1.0, 1.0, 1.0), normalizedDepth * 5.0);
-                    } else if (normalizedDepth < 0.4) {
-                        // Cyan to green (2-4 feet)
-                        color = mix(vec4(0.0, 1.0, 1.0, 1.0), vec4(0.0, 1.0, 0.0, 1.0), (normalizedDepth - 0.2) * 5.0);
-                    } else if (normalizedDepth < 0.6) {
-                        // Green to yellow (4-6 feet)
-                        color = mix(vec4(0.0, 1.0, 0.0, 1.0), vec4(1.0, 1.0, 0.0, 1.0), (normalizedDepth - 0.4) * 5.0);
-                    } else if (normalizedDepth < 0.8) {
-                        // Yellow to red (6-8 feet)
-                        color = mix(vec4(1.0, 1.0, 0.0, 1.0), vec4(1.0, 0.0, 0.0, 1.0), (normalizedDepth - 0.6) * 5.0);
-                    } else {
-                        // Red to white (8-10 feet)
-                        color = mix(vec4(1.0, 0.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0), (normalizedDepth - 0.8) * 5.0);
-                    }
-                    
-                    // Add transparency for very distant objects (beyond our max depth)
-                    if (rawDepth > maxDepthInMeters) {
-                        color.a = 0.3; // Make distant objects more transparent
-                    }
-                    
-                    return color;
-                }
-                """
-            )
-            
-            guard let kernel = colorKernel else { return nil }
-            
-            // Apply the color kernel to the depth image
-            guard let colorizedImage = kernel.apply(extent: depthImage.extent, 
-                                                 arguments: [depthImage]) else { return nil }
-            
-            // Convert CIImage to UIImage
-            let context = CIContext()
-            guard let cgImage = context.createCGImage(colorizedImage, from: colorizedImage.extent) else { return nil }
-            
-            return UIImage(cgImage: cgImage)
-        }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    func makeUIView(context: Context) -> ARView {
-        let arView = ARView(frame: .zero)
-        
-        // Set up AR configuration
-        let config = ARWorldTrackingConfiguration()
-        
-        // Enable scene depth if supported
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
-            config.frameSemantics.insert(.sceneDepth)
-        } else {
-            print("Scene depth is not supported on this device")
-        }
-        
-        // Set the session delegate
-        arView.session.delegate = context.coordinator
-        
-        // Run the session
-        arView.session.run(config)
-        
-        return arView
-    }
-    
-    func updateUIView(_ uiView: ARView, context: Context) {
-        // Handle updates if needed
-    }
-}
 
 // MARK: - Video Recording View
 struct VideoRecordingView: View {
@@ -172,11 +38,12 @@ struct VideoRecordingView: View {
                     if let depthImage = depthImage {
                         Image(uiImage: depthImage)
                             .resizable()
-                            .aspectRatio(contentMode: .fill) // Changed from .fit to .fill
+                            .aspectRatio(contentMode: .fill)
                             .frame(maxWidth: .infinity, maxHeight: 400)
                             .cornerRadius(12)
                             .opacity(0.7)
-                            .clipped() // Ensure it doesn't extend beyond bounds
+                            .blendMode(.overlay)
+                            .clipped()
                     }
                 }
                 .padding(.horizontal)
@@ -238,8 +105,3 @@ struct VideoRecordingView: View {
         }
     }
 }
-
-// MARK: - Preview Provider
-#Preview {
-    VideoRecordingView()
-} 
