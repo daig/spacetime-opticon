@@ -92,8 +92,3 @@ struct AudioRecordingView: View {
         }
     }
 }
-
-// MARK: - Preview Provider
-#Preview {
-    AudioRecordingView()
-} 
