@@ -58,11 +58,19 @@ struct VideoRecordingView: View {
                     .foregroundColor(isRecording ? .red : .primary)
                     .padding()
 
-                // Optional: Display point cloud size
                 if let pointCloud = pointCloud {
                     Text("Points: \(pointCloud.count)")
                         .foregroundColor(.gray)
                 }
+
+                Button("Save Point Cloud") {
+                    if let pointCloud = pointCloud {
+                        savePointCloudToFile(points: pointCloud)
+                    } else {
+                        print("No point cloud available")
+                    }
+                }
+                .padding()
             } else {
                 Button("Request Camera Permission") {
                     requestCameraPermission()
@@ -103,4 +111,5 @@ struct VideoRecordingView: View {
             }
         }
     }
+    
 }
