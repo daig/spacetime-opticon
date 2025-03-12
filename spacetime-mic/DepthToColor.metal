@@ -1,53 +1,33 @@
 #include <metal_stdlib>
 using namespace metal;
+#include <CoreImage/CoreImage.h>
 
-namespace SpacetimeMic {
-    kernel void depthToColorKernelImpl(
-        texture2d<float, access::read> depthTexture [[texture(0)]],
-        texture2d<float, access::write> outputTexture [[texture(1)]],
-        uint2 gid [[thread_position_in_grid]]
-    ) {
-        // Check if we're within the texture bounds
-        if (gid.x >= outputTexture.get_width() || gid.y >= outputTexture.get_height()) {
-            return;
-        }
-        
-        // Read the depth value from the depth texture at the current position
-        float rawDepth = depthTexture.read(gid).r;
-        
-        // Define the maximum depth for normalization (3 meters)
-        float maxDepthInMeters = 3.0;
-        
-        // Normalize the depth value between 0 and 1
-        float normalizedDepth = clamp(rawDepth / maxDepthInMeters, 0.0, 1.0);
-        
-        // Initialize the color variable
-        float4 color;
-        
-        // Map normalized depth to a color using a heatmap scheme
-        if (normalizedDepth < 0.2) {
-            // Blue to cyan - closest objects (0-2 feet)
-            color = mix(float4(0.0, 0.0, 1.0, 1.0), float4(0.0, 1.0, 1.0, 1.0), normalizedDepth * 5.0);
-        } else if (normalizedDepth < 0.4) {
-            // Cyan to green (2-4 feet)
-            color = mix(float4(0.0, 1.0, 1.0, 1.0), float4(0.0, 1.0, 0.0, 1.0), (normalizedDepth - 0.2) * 5.0);
-        } else if (normalizedDepth < 0.6) {
-            // Green to yellow (4-6 feet)
-            color = mix(float4(0.0, 1.0, 0.0, 1.0), float4(1.0, 1.0, 0.0, 1.0), (normalizedDepth - 0.4) * 5.0);
-        } else if (normalizedDepth < 0.8) {
-            // Yellow to red (6-8 feet)
-            color = mix(float4(1.0, 1.0, 0.0, 1.0), float4(1.0, 0.0, 0.0, 1.0), (normalizedDepth - 0.6) * 5.0);
-        } else {
-            // Red to white (8-10 feet)
-            color = mix(float4(1.0, 0.0, 0.0, 1.0), float4(1.0, 1.0, 1.0, 1.0), (normalizedDepth - 0.8) * 5.0);
-        }
-        
-        // Adjust alpha for depths exceeding the maximum
-        if (rawDepth > maxDepthInMeters) {
-            color.a = 0.3;
-        }
-        
-        // Write the resulting color to the output texture
-        outputTexture.write(color, gid);
+[[stitchable]]
+float4 depthToColor(coreimage::sample_t depth) {
+    float rawDepth = depth.r; // Depth map is single-channel, stored in red
+    
+    // Normalize depth (assuming max depth of 3 meters)
+    float maxDepthInMeters = 3.0;
+    float normalizedDepth = clamp(rawDepth / maxDepthInMeters, 0.0, 1.0);
+    
+    // Map to a heatmap color
+    float4 color;
+    if (normalizedDepth < 0.2) {
+        color = mix(float4(0.0, 0.0, 1.0, 1.0), float4(0.0, 1.0, 1.0, 1.0), normalizedDepth * 5.0); // Blue to cyan
+    } else if (normalizedDepth < 0.4) {
+        color = mix(float4(0.0, 1.0, 1.0, 1.0), float4(0.0, 1.0, 0.0, 1.0), (normalizedDepth - 0.2) * 5.0); // Cyan to green
+    } else if (normalizedDepth < 0.6) {
+        color = mix(float4(0.0, 1.0, 0.0, 1.0), float4(1.0, 1.0, 0.0, 1.0), (normalizedDepth - 0.4) * 5.0); // Green to yellow
+    } else if (normalizedDepth < 0.8) {
+        color = mix(float4(1.0, 1.0, 0.0, 1.0), float4(1.0, 0.0, 0.0, 1.0), (normalizedDepth - 0.6) * 5.0); // Yellow to red
+    } else {
+        color = mix(float4(1.0, 0.0, 0.0, 1.0), float4(1.0, 1.0, 1.0, 1.0), (normalizedDepth - 0.8) * 5.0); // Red to white
     }
-} 
+    
+    // Fade out depths beyond max
+    if (rawDepth > maxDepthInMeters) {
+        color.a = 0.3;
+    }
+    
+    return color;
+}
