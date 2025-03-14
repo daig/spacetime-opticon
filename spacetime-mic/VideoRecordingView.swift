@@ -63,14 +63,42 @@ struct VideoRecordingView: View {
                         .foregroundColor(.gray)
                 }
 
-                Button("Save Point Cloud") {
-                    if let pointCloud = pointCloud {
-                        savePointCloudToFile(points: pointCloud)
-                    } else {
-                        print("No point cloud available")
+                HStack(spacing: 15) {
+                    Button(action: {
+                        if let pointCloud = pointCloud {
+                            savePointCloudToFile(points: pointCloud)
+                        } else {
+                            print("No point cloud available")
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "doc.text")
+                            Text("Save as PLY")
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.blue.opacity(0.2))
+                        .cornerRadius(8)
+                    }
+                    
+                    Button(action: {
+                        if let pointCloud = pointCloud {
+                            savePointCloudToDracoFile(points: pointCloud)
+                        } else {
+                            print("No point cloud available")
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "doc.zipper")
+                            Text("Save Compressed")
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.green.opacity(0.2))
+                        .cornerRadius(8)
                     }
                 }
-                .padding()
+                .padding(.horizontal)
             } else {
                 Button("Request Camera Permission") {
                     requestCameraPermission()

@@ -35,6 +35,12 @@ NS_ASSUME_NONNULL_BEGIN
 // Get the bounding box as an array of 6 floats [min_x, min_y, min_z, max_x, max_y, max_z]
 - (NSArray<NSNumber *> *)computeBoundingBox;
 
+// Set attribute data directly from a flat array of floats
+// attributeId: The ID of the attribute to set values for
+// floatData: NSData containing raw float values in the format [x1,y1,z1,x2,y2,z2,...]
+// Returns YES if successful, NO otherwise
+- (BOOL)setFloatAttributeData:(NSInteger)attributeId data:(NSData *)floatData;
+
 @end
 
 NS_ASSUME_NONNULL_END

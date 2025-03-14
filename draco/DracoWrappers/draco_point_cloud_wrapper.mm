@@ -100,4 +100,45 @@
     return result;
 }
 
+- (BOOL)setFloatAttributeData:(NSInteger)attributeId data:(NSData *)floatData {
+    if (!_pointCloud || attributeId < 0 || attributeId >= _pointCloud->num_attributes() || !floatData) {
+        return NO;
+    }
+    
+    // Get the attribute
+    draco::PointAttribute *attribute = _pointCloud->attribute(static_cast<int32_t>(attributeId));
+    if (!attribute) {
+        return NO;
+    }
+    
+    // Verify we're working with float data
+    if (attribute->data_type() != draco::DT_FLOAT32) {
+        NSLog(@"Attribute is not of float type");
+        return NO;
+    }
+    
+    const size_t numComponents = attribute->num_components();
+    const size_t numPoints = _pointCloud->num_points();
+    const size_t expectedDataSize = numPoints * numComponents * sizeof(float);
+    
+    if (floatData.length != expectedDataSize) {
+        NSLog(@"Data size mismatch: expected %zu bytes, got %zu bytes", expectedDataSize, floatData.length);
+        return NO;
+    }
+    
+    // Get raw pointer to the float data
+    const float *floatValues = static_cast<const float *>(floatData.bytes);
+    
+    // For each point, set its attribute value
+    for (uint32_t i = 0; i < numPoints; i++) {
+        const float *pointValues = floatValues + (i * numComponents);
+        
+        // Use the draco API to set the attribute value
+        // For identity mapping, the attribute value index is the same as the point index
+        attribute->SetAttributeValue(draco::AttributeValueIndex(i), pointValues);
+    }
+    
+    return YES;
+}
+
 @end
