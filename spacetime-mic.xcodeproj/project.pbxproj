@@ -23,6 +23,16 @@
 			path = "spacetime-mic";
 			sourceTree = "<group>";
 		};
+		CCB09B932D83F76000B41AD4 /* Libraries */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Libraries;
+			sourceTree = "<group>";
+		};
+		CCB09B942D83F76E00B41AD4 /* DracoHeaders */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = DracoHeaders;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,6 +51,8 @@
 		CC0621BB2D7E183900446469 = {
 			isa = PBXGroup;
 			children = (
+				CCB09B942D83F76E00B41AD4 /* DracoHeaders */,
+				CCB09B932D83F76000B41AD4 /* Libraries */,
 				CC0621C62D7E183900446469 /* spacetime-mic */,
 				CC06220A2D7F209F00446469 /* Frameworks */,
 				CC0621C52D7E183900446469 /* Products */,
@@ -81,6 +93,8 @@
 			);
 			fileSystemSynchronizedGroups = (
 				CC0621C62D7E183900446469 /* spacetime-mic */,
+				CCB09B932D83F76000B41AD4 /* Libraries */,
+				CCB09B942D83F76E00B41AD4 /* DracoHeaders */,
 			);
 			name = "spacetime-mic";
 			packageProductDependencies = (
@@ -274,6 +288,7 @@
 				DEVELOPMENT_TEAM = 8DWR7MSCR6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/DracoHeaders";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture depth data for AR functionality.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs access to the microphone to record audio from your external audio interface.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -285,6 +300,12 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+					"$(SRCROOT)/Libraries",
+					"$(PROJECT_DIR)/Libraries",
 				);
 				MARKETING_VERSION = 1.0;
 				MTLLINKER_FLAGS = "-framework CoreImage";
@@ -311,6 +332,7 @@
 				DEVELOPMENT_TEAM = 8DWR7MSCR6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/DracoHeaders";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture depth data for AR functionality.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs access to the microphone to record audio from your external audio interface.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -322,6 +344,12 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+					"$(SRCROOT)/Libraries",
+					"$(PROJECT_DIR)/Libraries",
 				);
 				MARKETING_VERSION = 1.0;
 				MTLLINKER_FLAGS = "-framework CoreImage";
