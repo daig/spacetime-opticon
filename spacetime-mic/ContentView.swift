@@ -1,6 +1,9 @@
 import SwiftUI
 import AVFoundation
 import Combine
+import ARKit
+import SceneKit
+import RealityKit
 
 // MARK: - Content View
 struct ContentView: View {
@@ -20,11 +23,17 @@ struct ContentView: View {
                 }
                 .tag(1)
                 
+            PLYViewer()
+                .tabItem {
+                    Label("View PLY", systemImage: "cube.transparent.fill")
+                }
+                .tag(2)
+                
             DracoPointCloudTestView()
                 .tabItem {
                     Label("Draco", systemImage: "cube.transparent")
                 }
-                .tag(2)
+                .tag(3)
         }
     }
 }
