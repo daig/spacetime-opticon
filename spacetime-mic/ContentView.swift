@@ -19,6 +19,12 @@ struct ContentView: View {
                     Label("Video", systemImage: "video")
                 }
                 .tag(1)
+                
+            DracoPointCloudTestView()
+                .tabItem {
+                    Label("Draco", systemImage: "cube.transparent")
+                }
+                .tag(2)
         }
     }
 }

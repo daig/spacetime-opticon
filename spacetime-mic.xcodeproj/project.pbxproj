@@ -28,9 +28,9 @@
 			path = Libraries;
 			sourceTree = "<group>";
 		};
-		CCB09B942D83F76E00B41AD4 /* DracoHeaders */ = {
+		CCB09B942D83F76E00B41AD4 /* draco */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = DracoHeaders;
+			path = draco;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -51,7 +51,7 @@
 		CC0621BB2D7E183900446469 = {
 			isa = PBXGroup;
 			children = (
-				CCB09B942D83F76E00B41AD4 /* DracoHeaders */,
+				CCB09B942D83F76E00B41AD4 /* draco */,
 				CCB09B932D83F76000B41AD4 /* Libraries */,
 				CC0621C62D7E183900446469 /* spacetime-mic */,
 				CC06220A2D7F209F00446469 /* Frameworks */,
@@ -94,7 +94,7 @@
 			fileSystemSynchronizedGroups = (
 				CC0621C62D7E183900446469 /* spacetime-mic */,
 				CCB09B932D83F76000B41AD4 /* Libraries */,
-				CCB09B942D83F76E00B41AD4 /* DracoHeaders */,
+				CCB09B942D83F76E00B41AD4 /* draco */,
 			);
 			name = "spacetime-mic";
 			packageProductDependencies = (
@@ -115,6 +115,7 @@
 				TargetAttributes = {
 					CC0621C32D7E183900446469 = {
 						CreatedOnToolsVersion = 16.2;
+						LastSwiftMigration = 1620;
 					};
 				};
 			};
@@ -282,13 +283,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"spacetime-mic/Preview Content\"";
 				DEVELOPMENT_TEAM = 8DWR7MSCR6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = "$(SRCROOT)/DracoHeaders";
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/draco";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture depth data for AR functionality.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs access to the microphone to record audio from your external audio interface.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -316,6 +318,8 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "draco/DracoWrappers/spacetime-mic-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -326,13 +330,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"spacetime-mic/Preview Content\"";
 				DEVELOPMENT_TEAM = 8DWR7MSCR6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = "$(SRCROOT)/DracoHeaders";
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/draco";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture depth data for AR functionality.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs access to the microphone to record audio from your external audio interface.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -360,6 +365,7 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "draco/DracoWrappers/spacetime-mic-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
