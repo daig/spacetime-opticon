@@ -186,23 +186,18 @@ extension VideoRecordingView {
                 return
             }
             
-            // Create a directory to store the PLY video
+            // Create a directory for Draco-encoded frames
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
             let timestamp = dateFormatter.string(from: Date())
-            let dirName = "plyVideo_\(timestamp)"
-            let dirURL = documentsDirectory.appendingPathComponent(dirName)
-            
-            // Create a parallel directory for Draco-encoded frames
             let drcDirName = "plyVideo_\(timestamp).drc.bundle"
             let drcDirURL = documentsDirectory.appendingPathComponent(drcDirName)
             
             do {
-                // Create both directories
-                try fileManager.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil)
+                // Create directory
                 try fileManager.createDirectory(at: drcDirURL, withIntermediateDirectories: true, attributes: nil)
                 
-                // Create metadata files
+                // Create metadata file
                 let metadata: [String: Any] = [
                     "frameCount": frames.count,
                     "recordingDate": timestamp,
@@ -211,20 +206,12 @@ extension VideoRecordingView {
                 
                 let metadataData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
                 
-                // Save metadata to both directories
-                let metadataURL = dirURL.appendingPathComponent("metadata.json")
+                // Save metadata
                 let drcMetadataURL = drcDirURL.appendingPathComponent("metadata.json")
-                try metadataData.write(to: metadataURL)
                 try metadataData.write(to: drcMetadataURL)
                 
-                // Save each frame in both formats
+                // Save each frame in Draco format only
                 for (index, frame) in frames.enumerated() {
-                    // Save as PLY
-                    let plyString = self.pointCloudToPLY(points: frame.points)
-                    let frameFileName = String(format: "frame_%04d.ply", index)
-                    let frameFileURL = dirURL.appendingPathComponent(frameFileName)
-                    try plyString.write(to: frameFileURL, atomically: true, encoding: .utf8)
-                    
                     // Save as Draco
                     let drcFrameFileName = String(format: "frame_%04d.drc", index)
                     let drcFrameFileURL = drcDirURL.appendingPathComponent(drcFrameFileName)
@@ -273,7 +260,6 @@ extension VideoRecordingView {
                     }
                 }
                 
-                print("PLY video saved to \(dirURL)")
                 print("Draco-encoded PLY video saved to \(drcDirURL)")
                 
                 // Show a notification to the user
@@ -286,7 +272,7 @@ extension VideoRecordingView {
                        let rootViewController = windowScene.windows.first?.rootViewController {
                         let alert = UIAlertController(
                             title: "PLY Video Saved",
-                            message: "The PLY video has been saved to:\n\(dirName)\n\nDraco version saved to:\n\(drcDirName)",
+                            message: "The Draco-encoded PLY video has been saved to:\n\(drcDirName)",
                             preferredStyle: .alert
                         )
                         alert.addAction(UIAlertAction(title: "OK", style: .default))

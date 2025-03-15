@@ -178,9 +178,14 @@ struct VideoRecordingView: View {
     
     // Function to capture the current frame for PLY video
     private func captureCurrentFrame() {
-        if isPLYVideoRecording, let currentPoints = pointCloud {
-            capturePLYVideoFrame(points: currentPoints)
-        }
+        // We don't need to capture directly from here anymore
+        // because the .pointCloudFrameAvailable notification will handle it
+        // This function is now a no-op to avoid duplicate frame capture
+        
+        // The original code that causes duplicates:
+        // if isPLYVideoRecording, let currentPoints = pointCloud {
+        //     capturePLYVideoFrame(points: currentPoints)
+        // }
     }
 
     private func checkCameraPermission() {
