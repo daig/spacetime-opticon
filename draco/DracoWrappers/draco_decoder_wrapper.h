@@ -34,6 +34,13 @@ typedef NS_ENUM(NSInteger, DracoGeometryType) {
 - (nullable DracoPointCloud *)decodePointCloudFromData:(NSData *)data;
 
 /**
+ * Swift-friendly method to decode a point cloud from the provided data.
+ * @param from The encoded Draco data
+ * @return A DracoPointCloud object if successful, or nil if decoding failed
+ */
+- (nullable DracoPointCloud *)decodePointCloud:(NSData *)from;
+
+/**
  * Sets whether to skip attribute transform for the specified attribute type.
  * When set, the decoder will not apply transforms like dequantization.
  * @param attributeType The attribute type to skip transform for

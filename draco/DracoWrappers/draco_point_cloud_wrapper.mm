@@ -102,18 +102,20 @@
 
 - (BOOL)setFloatAttributeData:(NSInteger)attributeId data:(NSData *)floatData {
     if (!_pointCloud || attributeId < 0 || attributeId >= _pointCloud->num_attributes() || !floatData) {
+        NSLog(@"Error: Invalid inputs to setFloatAttributeData");
         return NO;
     }
     
-    // Get the attribute
-    draco::PointAttribute *attribute = _pointCloud->attribute(static_cast<int32_t>(attributeId));
+    // Get the attribute - ensure we cast it as draco::GeometryAttribute to match API
+    draco::GeometryAttribute* attribute = static_cast<draco::GeometryAttribute*>(_pointCloud->attribute(static_cast<int32_t>(attributeId)));
     if (!attribute) {
+        NSLog(@"Error: Could not get attribute %ld", (long)attributeId);
         return NO;
     }
     
     // Verify we're working with float data
     if (attribute->data_type() != draco::DT_FLOAT32) {
-        NSLog(@"Attribute is not of float type");
+        NSLog(@"Error: Attribute is not of float type");
         return NO;
     }
     
@@ -122,34 +124,108 @@
     const size_t expectedDataSize = numPoints * numComponents * sizeof(float);
     
     if (floatData.length != expectedDataSize) {
-        NSLog(@"Data size mismatch: expected %zu bytes, got %zu bytes", expectedDataSize, floatData.length);
+        NSLog(@"Error: Data size mismatch: expected %zu bytes, got %zu bytes", expectedDataSize, floatData.length);
         return NO;
     }
     
     // Get raw pointer to the float data
     const float *floatValues = static_cast<const float *>(floatData.bytes);
     
-    // For each point, set its attribute value
-    for (uint32_t i = 0; i < numPoints; i++) {
-        const float *pointValues = floatValues + (i * numComponents);
+    NSLog(@"Setting attribute data for %zu points with %zu components each", numPoints, numComponents);
+    
+    // For each point, we'll use the appropriate API to set the attribute value
+    bool success = true;
+    
+    // Set the attribute values point by point
+    for (uint32_t pointId = 0; pointId < numPoints; pointId++) {
+        const float *pointValues = floatValues + (pointId * numComponents);
         
-        // Instead of using AttributeValueIndex, let's try a more direct approach
-        // Just set a dummy value for now since we're having issues with the Draco API
-        // In a real implementation, you'd use the proper Draco API
-        // This is just to make it compile and test the rest of the code
-        if (i < numPoints) {
-            // Log that we're skipping the actual setting for now
-            if (i == 0) {
-                NSLog(@"Warning: Using placeholder for attribute setting due to API compatibility issues");
+        // Method 1: Use direct data buffer access
+        try {
+            // Get the attribute value index using the PointAttribute's methods
+            uint32_t valueIndex = pointId;  // Identity mapping
+            
+            // Cast as PointAttribute for access to GetAddress method
+            draco::PointAttribute* pointAttr = static_cast<draco::PointAttribute*>(attribute);
+            uint8_t* dstAddress = pointAttr->GetAddress(draco::AttributeValueIndex(valueIndex));
+            
+            // If GetAddress fails, try an alternate approach
+            if (!dstAddress && pointId == 0) {
+                NSLog(@"GetAddress returned null, trying alternate approach");
+                
+                // Try to get the buffer directly and use stride-based indexing
+                if (pointAttr->buffer() && pointAttr->buffer()->data()) {
+                    NSLog(@"Using direct buffer approach");
+                    
+                    uint8_t* bufferStart = const_cast<uint8_t*>(pointAttr->buffer()->data());
+                    size_t stride = pointAttr->byte_stride();
+                    
+                    // Copy point data to the appropriate buffer location
+                    for (uint32_t i = 0; i < numPoints; i++) {
+                        const float *srcPoint = floatValues + (i * numComponents);
+                        float *dstPoint = reinterpret_cast<float*>(bufferStart + i * stride);
+                        
+                        // Copy each component
+                        for (size_t c = 0; c < numComponents; c++) {
+                            dstPoint[c] = srcPoint[c];
+                        }
+                        
+                        // Log first and last points
+                        if (i == 0 || i == numPoints - 1) {
+                            NSLog(@"Set point %u: (%f, %f, %f)", i,
+                                  srcPoint[0],
+                                  numComponents > 1 ? srcPoint[1] : 0.0f,
+                                  numComponents > 2 ? srcPoint[2] : 0.0f);
+                        }
+                    }
+                    
+                    // Mark as successful and skip the rest of the loop
+                    success = true;
+                    break;
+                }
             }
+            
+            if (dstAddress) {
+                // Copy the float data directly to the attribute's memory
+                memcpy(dstAddress, pointValues, numComponents * sizeof(float));
+                
+                // Log first and last point for verification
+                if (pointId == 0 || pointId == numPoints - 1) {
+                    NSLog(@"Set point %u: (%f, %f, %f)", pointId,
+                         pointValues[0],
+                         numComponents > 1 ? pointValues[1] : 0.0f,
+                         numComponents > 2 ? pointValues[2] : 0.0f);
+                }
+            } else {
+                // If we couldn't get an address for the first point, that's a critical error
+                if (pointId == 0) {
+                    NSLog(@"Error: Could not get attribute data address for point 0");
+                    return NO;
+                }
+                success = false;
+            }
+        } catch (...) {
+            // If the first point fails, log and fail
+            if (pointId == 0) {
+                NSLog(@"Error: Exception setting data for point 0");
+                return NO;
+            }
+            success = false;
         }
     }
     
-    return YES;
+    if (success) {
+        NSLog(@"Successfully set attribute data for all %zu points", numPoints);
+    } else {
+        NSLog(@"Warning: Some points may not have been set correctly");
+    }
+    
+    return success;
 }
 
 - (nullable NSData *)getPositionData {
     if (!_pointCloud) {
+        NSLog(@"Error: No point cloud object exists");
         return nil;
     }
     
@@ -157,7 +233,8 @@
     // Position attribute typically has type POSITION = 0
     int attributeId = -1;
     for (int i = 0; i < _pointCloud->num_attributes(); ++i) {
-        const draco::PointAttribute* att = _pointCloud->attribute(i);
+        // Cast to GeometryAttribute for attribute_type access
+        const draco::GeometryAttribute* att = static_cast<const draco::GeometryAttribute*>(_pointCloud->attribute(i));
         if (att && att->attribute_type() == 0) { // 0 = POSITION in Draco
             attributeId = i;
             break;
@@ -165,50 +242,105 @@
     }
     
     if (attributeId == -1) {
-        NSLog(@"No position attribute found in point cloud");
+        NSLog(@"Error: No position attribute found in point cloud");
         return nil;
     }
     
-    // Get the position attribute
-    const draco::PointAttribute *positionAttribute = _pointCloud->attribute(attributeId);
-    if (!positionAttribute) {
+    // Get the position attribute - cast to GeometryAttribute for API compatibility
+    const draco::GeometryAttribute *geomAttribute = static_cast<const draco::GeometryAttribute*>(_pointCloud->attribute(attributeId));
+    if (!geomAttribute) {
+        NSLog(@"Error: Failed to get position attribute");
         return nil;
     }
+    
+    // Also get as PointAttribute for GetAddress access
+    const draco::PointAttribute *positionAttribute = static_cast<const draco::PointAttribute*>(geomAttribute);
     
     // Check if it's a float attribute
-    if (positionAttribute->data_type() != draco::DT_FLOAT32) {
-        NSLog(@"Position attribute is not of float type");
+    if (geomAttribute->data_type() != draco::DT_FLOAT32) {
+        NSLog(@"Error: Position attribute is not of float type");
         return nil;
     }
     
-    const size_t numComponents = positionAttribute->num_components();
+    const size_t numComponents = geomAttribute->num_components();
     const size_t numPoints = _pointCloud->num_points();
     const size_t dataSize = numPoints * numComponents * sizeof(float);
+    
+    // Log key information for debugging
+    NSLog(@"Position attribute info: %d points, %zu components", 
+          _pointCloud->num_points(), numComponents);
+          
+    // Check the attribute's byte stride (should be numComponents * sizeof(float))
+    size_t byteStride = geomAttribute->byte_stride();
+    NSLog(@"Attribute byte stride: %zu (expected %zu)", 
+          byteStride, numComponents * sizeof(float));
     
     // Create a buffer to hold the point data
     float *pointBuffer = (float *)malloc(dataSize);
     if (!pointBuffer) {
-        NSLog(@"Failed to allocate memory for point data");
+        NSLog(@"Error: Failed to allocate memory for point data (%zu bytes)", dataSize);
         return nil;
     }
     
     // Initialize buffer with zeros
     memset(pointBuffer, 0, dataSize);
     
-    // We're having trouble with the Draco API, so let's try a fallback approach
-    // Let's create some placeholder data instead of trying to access the actual values
-    // This is not ideal but will allow us to test the rest of the pipeline
-    for (uint32_t i = 0; i < numPoints; i++) {
-        float* currentPoint = pointBuffer + (i * numComponents);
+    // Use direct memory access to get the real point data
+    bool success = false;
+    
+    try {
+        // Get a pointer to the start of the attribute data
+        // For PointAttribute, we can usually access the data directly
+        const uint8_t* srcBuffer = positionAttribute->GetAddress(draco::AttributeValueIndex(0));
         
-        // Generate some placeholder values based on the point index
-        // In a real implementation, we would extract this from the Draco point cloud
-        currentPoint[0] = static_cast<float>(i) * 0.01f;  // X coordinate
-        if (numComponents > 1) currentPoint[1] = static_cast<float>(i) * 0.02f;  // Y coordinate
-        if (numComponents > 2) currentPoint[2] = static_cast<float>(i) * 0.03f;  // Z coordinate
+        // If GetAddress returns null, try a different approach
+        if (!srcBuffer) {
+            NSLog(@"GetAddress returned null, trying alternate approach");
+            srcBuffer = positionAttribute->buffer()->data();
+        }
+        
+        if (srcBuffer && byteStride > 0) {
+            NSLog(@"Extracting real point data using direct buffer access");
+            
+            // Copy the data with the correct stride
+            for (uint32_t pointId = 0; pointId < numPoints; pointId++) {
+                float* currentPoint = pointBuffer + (pointId * numComponents);
+                
+                // Calculate attribute value index
+                uint32_t valueIndex = pointId;  // Identity mapping
+                size_t offset = valueIndex * byteStride;
+                const float* srcPoint = reinterpret_cast<const float*>(srcBuffer + offset);
+                
+                // Copy each component
+                for (size_t c = 0; c < numComponents; c++) {
+                    currentPoint[c] = srcPoint[c];
+                }
+                
+                // Log first and last point for verification
+                if (pointId == 0 || pointId == numPoints - 1) {
+                    NSLog(@"Point %u: (%f, %f, %f)", pointId,
+                         currentPoint[0],
+                         numComponents > 1 ? currentPoint[1] : 0,
+                         numComponents > 2 ? currentPoint[2] : 0);
+                }
+            }
+            
+            success = true;
+        } else {
+            NSLog(@"Error: Failed to get attribute buffer address or stride is invalid");
+        }
+    } catch (...) {
+        NSLog(@"Exception while accessing attribute data buffer");
     }
     
-    NSLog(@"Created placeholder position data for %zu points with %zu components each", 
+    // If we failed to extract the data, we need to fail - NOT create fake data
+    if (!success) {
+        NSLog(@"Error: Failed to extract real point data from the point cloud");
+        free(pointBuffer);
+        return nil;
+    }
+    
+    NSLog(@"Successfully extracted %zu points with %zu components each", 
           numPoints, numComponents);
     
     // Create NSData from our buffer, which will take ownership and free memory when released

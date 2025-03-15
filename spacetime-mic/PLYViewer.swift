@@ -75,6 +75,16 @@ struct PLYViewer: View {
                             .background(Color.green)
                             .cornerRadius(10)
                     }
+                    
+                    Button(action: {
+                        showDracoFilePicker()
+                    }) {
+                        Text("Load Draco File")
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.orange)
+                            .cornerRadius(10)
+                    }
                 }
                 .padding(.bottom, 30)
             }
@@ -396,6 +406,166 @@ struct PLYViewer: View {
         videoPlaybackTimer?.invalidate()
         videoPlaybackTimer = nil
         isPlayingPLYVideo = false
+    }
+    
+    // Function to show the picker for Draco files
+    private func showDracoFilePicker() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let fileManager = FileManager.default
+                guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                    print("Could not access documents directory")
+                    return
+                }
+                
+                // Get list of .drc files in the Documents folder
+                let contents = try fileManager.contentsOfDirectory(at: documentsDirectory, includingPropertiesForKeys: [.isRegularFileKey], options: [])
+                
+                // Filter for only .drc files
+                let dracoFiles = contents.filter { $0.pathExtension.lowercased() == "drc" }
+                
+                DispatchQueue.main.async {
+                    if dracoFiles.isEmpty {
+                        // No Draco files found, show message
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let rootViewController = windowScene.windows.first?.rootViewController {
+                            let alert = UIAlertController(
+                                title: "No Draco Files Found",
+                                message: "No Draco files were found in your Documents directory. Create a Draco file first.",
+                                preferredStyle: .alert
+                            )
+                            alert.addAction(UIAlertAction(title: "OK", style: .default))
+                            rootViewController.present(alert, animated: true)
+                        }
+                    } else {
+                        // Show list of available Draco files
+                        self.showDracoFileSelectionMenu(files: dracoFiles)
+                    }
+                }
+            } catch {
+                print("Error listing documents directory: \(error)")
+                
+                DispatchQueue.main.async {
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootViewController = windowScene.windows.first?.rootViewController {
+                        let alert = UIAlertController(
+                            title: "Error",
+                            message: "Failed to access Draco files: \(error.localizedDescription)",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "OK", style: .default))
+                        rootViewController.present(alert, animated: true)
+                    }
+                }
+            }
+        }
+    }
+    
+    // Function to display a menu with available Draco files
+    private func showDracoFileSelectionMenu(files: [URL]) {
+        guard !files.isEmpty else { return }
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            
+            let alert = UIAlertController(
+                title: "Select Draco File",
+                message: "Choose a Draco file to load:",
+                preferredStyle: .actionSheet
+            )
+            
+            // Add an action for each file
+            for file in files {
+                let name = file.lastPathComponent
+                alert.addAction(UIAlertAction(title: name, style: .default) { _ in
+                    self.loadDracoFile(from: file)
+                })
+            }
+            
+            // Add cancel button
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            
+            rootViewController.present(alert, animated: true)
+        }
+    }
+    
+    // Function to load a Draco file and display the points
+    private func loadDracoFile(from url: URL) {
+        // Define a class to hold persistent references to objects
+        // This ensures our memory stays alive throughout the whole operation
+        class DecoderContext {
+            let data: Data
+            let decoder = DracoDecoder()
+            var pointCloud: DracoPointCloud?
+            var positionData: Data?
+            
+            init(data: Data) {
+                self.data = data
+            }
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Create a separate autorelease pool for this work
+            autoreleasepool {
+                do {
+                    // First verify the file exists and is readable
+                    let originalData = try Data(contentsOf: url)
+                    print("[Draco] Successfully read file: \(url.lastPathComponent), size: \(originalData.count) bytes")
+                    
+                    // Create our context object to hold strong references
+                    let context = DecoderContext(data: originalData)
+                    
+                    // Step 1: Create a VideoRecordingView to use its helper methods
+                    // This is safer as it's already working in other parts of the app
+                    let videoRecordingView = VideoRecordingView()
+                    print("[Draco] Created VideoRecordingView for file loading")
+                    
+                    // Step 2: Use the VideoRecordingView's established method to load the file
+                    print("[Draco] Attempting to load points from file...")
+                    guard let points = videoRecordingView.loadDracoPointCloudFromFile(url: url) else {
+                        throw NSError(domain: "DracoDecoding", code: 1, 
+                                    userInfo: [NSLocalizedDescriptionKey: "Failed to load Draco file (null result)"])
+                    }
+                    
+                    // Step 3: Make a copy of the points array to ensure memory safety
+                    let pointsCopy = Array(points)
+                    print("[Draco] Successfully loaded \(pointsCopy.count) points")
+                    
+                    // Send the points to the main thread
+                    DispatchQueue.main.async {
+                        print("[Draco] Updating UI with \(pointsCopy.count) points")
+                        self.selectedPoints = pointsCopy
+                        
+                        // Show success message
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                            let rootViewController = windowScene.windows.first?.rootViewController {
+                            let alert = UIAlertController(
+                                title: "Draco File Loaded",
+                                message: "Loaded \(pointsCopy.count) points from \(url.lastPathComponent)",
+                                preferredStyle: .alert
+                            )
+                            alert.addAction(UIAlertAction(title: "OK", style: .default))
+                            rootViewController.present(alert, animated: true)
+                        }
+                    }
+                } catch {
+                    print("[Draco] Error loading file: \(error)")
+                    
+                    DispatchQueue.main.async {
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let rootViewController = windowScene.windows.first?.rootViewController {
+                            let alert = UIAlertController(
+                                title: "Error",
+                                message: "Failed to load Draco file: \(url.lastPathComponent)\nError: \(error.localizedDescription)",
+                                preferredStyle: .alert
+                            )
+                            alert.addAction(UIAlertAction(title: "OK", style: .default))
+                            rootViewController.present(alert, animated: true)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
