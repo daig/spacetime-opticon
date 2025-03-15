@@ -41,6 +41,11 @@ NS_ASSUME_NONNULL_BEGIN
 // Returns YES if successful, NO otherwise
 - (BOOL)setFloatAttributeData:(NSInteger)attributeId data:(NSData *)floatData;
 
+// Get the position attribute data as an array of floats
+// Returns nil if there is no position attribute or if the data cannot be accessed
+// The returned data is organized as [x1,y1,z1,x2,y2,z2,...]
+- (nullable NSData *)getPositionData;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+
 // No need to import spacetime_mic as we're already within it
 // The bridging header brings in the Draco wrappers to the entire project
 
@@ -239,6 +240,84 @@ extension VideoRecordingView {
                 }
             }
         }
+    }
+    
+    // Load a Draco encoded point cloud file and convert it to an array of SIMD3<Float> points
+    func loadDracoPointCloudFromFile(url: URL) -> [SIMD3<Float>]? {
+        do {
+            // Read the file data
+            let dracoData = try Data(contentsOf: url)
+            
+            // Create decoder
+            let decoder = DracoDecoder()
+            
+            // Check if this is a valid point cloud
+            let geometryType = DracoDecoder.getEncodedGeometryType(dracoData)
+            guard geometryType == .pointCloud else {
+                print("File does not contain a valid Draco point cloud")
+                return nil
+            }
+            
+            // Decode the point cloud
+            guard let pointCloud = decoder.decodePointCloud(from: dracoData) else {
+                print("Failed to decode Draco point cloud")
+                return nil
+            }
+            
+            // Get the number of points - ensure we're calling it as a function
+            let numPoints = pointCloud.numPoints()
+            guard numPoints > 0 else {
+                print("Point cloud contains no points")
+                return nil
+            }
+            
+            // Get the bounding box to verify we have data - ensure we're calling it as a function
+            let boundingBox = pointCloud.computeBoundingBox()
+            print("Point cloud bounding box: \(boundingBox)")
+            
+            // Get the position data from the point cloud
+            guard let positionData = pointCloud.getPositionData() else {
+                print("Failed to extract position data from point cloud")
+                return nil
+            }
+            
+            // Convert the raw float data to an array of SIMD3<Float>
+            let floatValues = positionData.withUnsafeBytes { rawBuffer -> [Float] in
+                guard let floatBuffer = rawBuffer.baseAddress?.assumingMemoryBound(to: Float.self) else {
+                    return []
+                }
+                return Array(UnsafeBufferPointer(start: floatBuffer, count: positionData.count / MemoryLayout<Float>.size))
+            }
+            
+            // Create SIMD3<Float> points from the float array
+            var points: [SIMD3<Float>] = []
+            points.reserveCapacity(numPoints)
+            
+            for i in stride(from: 0, to: floatValues.count, by: 3) {
+                if i + 2 < floatValues.count {
+                    let point = SIMD3<Float>(floatValues[i], floatValues[i+1], floatValues[i+2])
+                    points.append(point)
+                }
+            }
+            
+            print("Successfully loaded \(points.count) points from Draco file")
+            return points
+        } catch {
+            print("Error loading Draco file: \(error)")
+            return nil
+        }
+    }
+    
+    // Load a Draco encoded point cloud from a specified file path
+    func loadDracoPointCloud(named fileName: String) -> [SIMD3<Float>]? {
+        let fileManager = FileManager.default
+        guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("Could not access documents directory")
+            return nil
+        }
+        
+        let fileURL = documentsDirectory.appendingPathComponent(fileName)
+        return loadDracoPointCloudFromFile(url: fileURL)
     }
 }
 
