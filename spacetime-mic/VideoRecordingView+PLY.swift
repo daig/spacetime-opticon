@@ -6,7 +6,11 @@
 //
 
 import Foundation
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 // No need to import spacetime_mic as we're already within it
 // The bridging header brings in the Draco wrappers to the entire project
@@ -189,11 +193,16 @@ extension VideoRecordingView {
             let dirName = "plyVideo_\(timestamp)"
             let dirURL = documentsDirectory.appendingPathComponent(dirName)
             
+            // Create a parallel directory for Draco-encoded frames
+            let drcDirName = "plyVideo_\(timestamp).drc.bundle"
+            let drcDirURL = documentsDirectory.appendingPathComponent(drcDirName)
+            
             do {
+                // Create both directories
                 try fileManager.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil)
+                try fileManager.createDirectory(at: drcDirURL, withIntermediateDirectories: true, attributes: nil)
                 
-                // Create a metadata file
-                let metadataURL = dirURL.appendingPathComponent("metadata.json")
+                // Create metadata files
                 let metadata: [String: Any] = [
                     "frameCount": frames.count,
                     "recordingDate": timestamp,
@@ -201,17 +210,71 @@ extension VideoRecordingView {
                 ]
                 
                 let metadataData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
-                try metadataData.write(to: metadataURL)
                 
-                // Save each frame as a separate PLY file
+                // Save metadata to both directories
+                let metadataURL = dirURL.appendingPathComponent("metadata.json")
+                let drcMetadataURL = drcDirURL.appendingPathComponent("metadata.json")
+                try metadataData.write(to: metadataURL)
+                try metadataData.write(to: drcMetadataURL)
+                
+                // Save each frame in both formats
                 for (index, frame) in frames.enumerated() {
+                    // Save as PLY
                     let plyString = self.pointCloudToPLY(points: frame.points)
                     let frameFileName = String(format: "frame_%04d.ply", index)
                     let frameFileURL = dirURL.appendingPathComponent(frameFileName)
                     try plyString.write(to: frameFileURL, atomically: true, encoding: .utf8)
+                    
+                    // Save as Draco
+                    let drcFrameFileName = String(format: "frame_%04d.drc", index)
+                    let drcFrameFileURL = drcDirURL.appendingPathComponent(drcFrameFileName)
+                    
+                    // Create a Draco point cloud object
+                    let pointCloud = DracoPointCloud()
+                    
+                    // Set the number of points
+                    pointCloud.setNumPoints(frame.points.count)
+                    
+                    // Add a position attribute (GeometryAttribute::POSITION = 0, DataType::DT_FLOAT32 = 9)
+                    let positionAttId = pointCloud.addAttribute(withType: 0, dataType: 9, numComponents: 3, normalized: false)
+                    
+                    // Convert points to flat array
+                    var floatArray = [Float]()
+                    floatArray.reserveCapacity(frame.points.count * 3)
+                    
+                    for point in frame.points {
+                        floatArray.append(point.x)
+                        floatArray.append(point.y)
+                        floatArray.append(point.z)
+                    }
+                    
+                    // Convert to Data
+                    let pointData = NSData(bytes: floatArray, length: floatArray.count * MemoryLayout<Float>.size)
+                    
+                    // Set the attribute values
+                    if !pointCloud.setFloatAttributeData(positionAttId, data: pointData as Data) {
+                        print("Failed to set point data for frame \(index)")
+                        continue
+                    }
+                    
+                    // Create an encoder
+                    let encoder = DracoEncoder()
+                    
+                    // Set encoding options
+                    encoder.setSpeedOptions(5, decodingSpeed: 7) // Medium encoding speed, fast decoding
+                    encoder.setAttributeQuantization(0, bits: 14) // Quantize positions with 14 bits
+                    
+                    // Encode the point cloud
+                    if let encodedData = encoder.encode(pointCloud) {
+                        // Save to file
+                        try encodedData.write(to: drcFrameFileURL)
+                    } else {
+                        print("Failed to encode frame \(index) with Draco")
+                    }
                 }
                 
                 print("PLY video saved to \(dirURL)")
+                print("Draco-encoded PLY video saved to \(drcDirURL)")
                 
                 // Show a notification to the user
                 DispatchQueue.main.async {
@@ -223,7 +286,7 @@ extension VideoRecordingView {
                        let rootViewController = windowScene.windows.first?.rootViewController {
                         let alert = UIAlertController(
                             title: "PLY Video Saved",
-                            message: "The PLY video has been saved to:\n\(dirName)",
+                            message: "The PLY video has been saved to:\n\(dirName)\n\nDraco version saved to:\n\(drcDirName)",
                             preferredStyle: .alert
                         )
                         alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -318,6 +381,95 @@ extension VideoRecordingView {
         
         let fileURL = documentsDirectory.appendingPathComponent(fileName)
         return loadDracoPointCloudFromFile(url: fileURL)
+    }
+    
+    // Load a Draco-encoded PLY video bundle
+    func loadDracoPLYVideoBundle(from bundleURL: URL, completion: @escaping ([[SIMD3<Float>]]?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                print("Loading Draco PLY video from: \(bundleURL.path)")
+                
+                // Check if the directory exists and is a valid bundle
+                let fileManager = FileManager.default
+                var isDirectory: ObjCBool = false
+                if !fileManager.fileExists(atPath: bundleURL.path, isDirectory: &isDirectory) || !isDirectory.boolValue {
+                    print("The specified path is not a valid directory")
+                    DispatchQueue.main.async {
+                        completion(nil)
+                    }
+                    return
+                }
+                
+                // Look for metadata file
+                let metadataURL = bundleURL.appendingPathComponent("metadata.json")
+                let metadataExists = fileManager.fileExists(atPath: metadataURL.path)
+                
+                // Read metadata if it exists
+                var frameCount = 0
+                var frameRate: Double = 1.0
+                
+                if metadataExists {
+                    print("Found metadata file")
+                    let metadataData = try Data(contentsOf: metadataURL)
+                    if let metadata = try JSONSerialization.jsonObject(with: metadataData) as? [String: Any] {
+                        frameCount = metadata["frameCount"] as? Int ?? 0
+                        frameRate = metadata["frameRate"] as? Double ?? 1.0
+                        print("Metadata: frameCount=\(frameCount), frameRate=\(frameRate)")
+                    }
+                }
+                
+                // Find DRC files in the bundle
+                let contents = try fileManager.contentsOfDirectory(at: bundleURL, includingPropertiesForKeys: nil, options: [])
+                let drcFiles = contents.filter { $0.pathExtension.lowercased() == "drc" }
+                    .sorted { $0.lastPathComponent < $1.lastPathComponent }
+                
+                print("Found \(drcFiles.count) DRC files")
+                
+                if drcFiles.isEmpty {
+                    print("No DRC files found in the directory")
+                    DispatchQueue.main.async {
+                        completion(nil)
+                    }
+                    return
+                }
+                
+                // If no metadata, use the count of DRC files
+                if frameCount == 0 {
+                    frameCount = drcFiles.count
+                }
+                
+                // Load all frames
+                var frames: [[SIMD3<Float>]] = []
+                for (index, drcFile) in drcFiles.enumerated() {
+                    print("Loading DRC file \(index+1)/\(drcFiles.count): \(drcFile.lastPathComponent)")
+                    if let points = self.loadDracoPointCloudFromFile(url: drcFile) {
+                        print("  - Loaded \(points.count) points")
+                        frames.append(points)
+                    } else {
+                        print("  - Failed to load frame")
+                    }
+                }
+                
+                if frames.isEmpty {
+                    print("Failed to load any frames from the DRC bundle")
+                    DispatchQueue.main.async {
+                        completion(nil)
+                    }
+                    return
+                }
+                
+                // Return the frames
+                print("Successfully loaded \(frames.count) Draco-encoded frames")
+                DispatchQueue.main.async {
+                    completion(frames)
+                }
+            } catch {
+                print("Error loading Draco PLY video: \(error)")
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+            }
+        }
     }
 }
 
