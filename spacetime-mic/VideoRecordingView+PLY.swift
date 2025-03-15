@@ -91,9 +91,23 @@ extension VideoRecordingView {
             // Create an encoder
             let encoder = DracoEncoder()
             
-            // Set encoding options for good compression but reasonable quality
-            encoder.setSpeedOptions(5, decodingSpeed: 7) // Medium encoding speed, fast decoding
-            encoder.setAttributeQuantization(0, bits: 14) // Quantize positions with 14 bits
+            // Apply dynamic compression settings based on point count
+            // For dense point clouds, we can use more aggressive compression
+            let pointCount = points.count
+            
+            if pointCount < 5000 {
+                // For smaller point clouds, use lighter compression to preserve detail
+                encoder.setSpeedOptions(5, decodingSpeed: 9)
+                encoder.setAttributeQuantization(0, bits: 12)
+            } else if pointCount < 20000 {
+                // Medium point clouds get more compression
+                encoder.setSpeedOptions(4, decodingSpeed: 8)
+                encoder.setAttributeQuantization(0, bits: 11)
+            } else {
+                // Large point clouds get the most aggressive compression
+                encoder.setSpeedOptions(3, decodingSpeed: 7)
+                encoder.setAttributeQuantization(0, bits: 10)
+            }
             
             // Encode the point cloud
             if let encodedData = encoder.encode(pointCloud) {
@@ -127,11 +141,22 @@ extension VideoRecordingView {
         var outputDirectory: URL?
         var frameCount = 0
         
+        // Size tracking variables
+        var totalUnencodedBytes: UInt64 = 0
+        var totalEncodedBytes: UInt64 = 0
+        var compressionRatios: [Double] = []
+        
         func startRecording() {
             isRecording = true
             frames = []
             encodedFrames = []
             frameCount = 0
+            
+            // Reset size tracking
+            totalUnencodedBytes = 0
+            totalEncodedBytes = 0
+            compressionRatios = []
+            
             recordingStartTime = Date()
             
             // Create output directory
@@ -150,6 +175,9 @@ extension VideoRecordingView {
             
             // Save metadata after stopping recording
             saveMetadata()
+            
+            // Report compression statistics
+            reportCompressionStats()
             
             // Calculate and display size
             calculateAndDisplaySize()
@@ -191,7 +219,12 @@ extension VideoRecordingView {
                 let metadata: [String: Any] = [
                     "frameCount": frameCount,
                     "recordingDate": timestamp,
-                    "frameRate": 25.0 // 25 frames per second
+                    "frameRate": 25.0, // 25 frames per second
+                    "compressionStats": [
+                        "totalUnencodedBytes": totalUnencodedBytes,
+                        "totalEncodedBytes": totalEncodedBytes,
+                        "avgCompressionRatio": compressionRatios.isEmpty ? 0 : compressionRatios.reduce(0, +) / Double(compressionRatios.count)
+                    ]
                 ]
                 
                 let metadataData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
@@ -206,6 +239,24 @@ extension VideoRecordingView {
             }
         }
         
+        private func reportCompressionStats() {
+            guard frameCount > 0 else { return }
+            
+            let avgUnencodedBytes = Double(totalUnencodedBytes) / Double(frameCount)
+            let avgEncodedBytes = Double(totalEncodedBytes) / Double(frameCount)
+            let avgCompressionRatio = compressionRatios.reduce(0, +) / Double(compressionRatios.count)
+            
+            print("===== COMPRESSION STATISTICS =====")
+            print("Total frames: \(frameCount)")
+            print("Average unencoded frame size: \(String(format: "%.2f", avgUnencodedBytes / 1024)) KB")
+            print("Average encoded frame size: \(String(format: "%.2f", avgEncodedBytes / 1024)) KB")
+            print("Average compression ratio: \(String(format: "%.2f", avgCompressionRatio))x")
+            print("Total unencoded data: \(String(format: "%.2f", Double(totalUnencodedBytes) / (1024 * 1024))) MB")
+            print("Total encoded data: \(String(format: "%.2f", Double(totalEncodedBytes) / (1024 * 1024))) MB")
+            print("Overall compression ratio: \(String(format: "%.2f", Double(totalUnencodedBytes) / Double(totalEncodedBytes)))x")
+            print("==================================")
+        }
+        
         private func calculateAndDisplaySize() {
             guard let outputDirectory = outputDirectory else { return }
             
@@ -215,6 +266,10 @@ extension VideoRecordingView {
                     let fileSizeBytes = try self.calculateDirectorySize(directory: outputDirectory)
                     let fileSizeMB = Double(fileSizeBytes) / (1024.0 * 1024.0)
                     print("Total bundle size: \(fileSizeMB) MB")
+                    
+                    // Compression ratio information
+                    let compressionInfo = self.totalEncodedBytes > 0 ? 
+                        "\nCompression ratio: \(String(format: "%.2f", Double(self.totalUnencodedBytes) / Double(self.totalEncodedBytes)))x" : ""
                     
                     // Show a notification to the user
                     DispatchQueue.main.async {
@@ -226,7 +281,7 @@ extension VideoRecordingView {
                            let rootViewController = windowScene.windows.first?.rootViewController {
                             let alert = UIAlertController(
                                 title: "PLY Video Saved",
-                                message: "The Draco-encoded PLY video has been saved to:\n\(outputDirectory.lastPathComponent)\nTotal size: \(String(format: "%.2f", fileSizeMB)) MB",
+                                message: "The Draco-encoded PLY video has been saved to:\n\(outputDirectory.lastPathComponent)\nTotal size: \(String(format: "%.2f", fileSizeMB)) MB\(compressionInfo)",
                                 preferredStyle: .alert
                             )
                             alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -282,6 +337,9 @@ extension VideoRecordingView {
                 // Set the number of points
                 pointCloud.setNumPoints(points.count)
                 
+                // Calculate unencoded size (3 floats per point * 4 bytes per float)
+                let unencodedSize = UInt64(points.count * 3 * MemoryLayout<Float>.size)
+                
                 // Add a position attribute (GeometryAttribute::POSITION = 0, DataType::DT_FLOAT32 = 9)
                 let positionAttId = pointCloud.addAttribute(withType: 0, dataType: 9, numComponents: 3, normalized: false)
                 
@@ -307,12 +365,46 @@ extension VideoRecordingView {
                 // Create an encoder
                 let encoder = DracoEncoder()
                 
-                // Set encoding options
-                encoder.setSpeedOptions(5, decodingSpeed: 7) // Medium encoding speed, fast decoding
-                encoder.setAttributeQuantization(0, bits: 14) // Quantize positions with 14 bits
+                // Apply dynamic compression settings based on point count
+                // For dense point clouds, we can use more aggressive compression
+                let pointCount = points.count
+                
+                if pointCount < 5000 {
+                    // For smaller point clouds, use lighter compression to preserve detail
+                    encoder.setSpeedOptions(5, decodingSpeed: 9)
+                    encoder.setAttributeQuantization(0, bits: 12)
+                } else if pointCount < 20000 {
+                    // Medium point clouds get more compression
+                    encoder.setSpeedOptions(4, decodingSpeed: 8)
+                    encoder.setAttributeQuantization(0, bits: 11)
+                } else {
+                    // Large point clouds get the most aggressive compression
+                    encoder.setSpeedOptions(3, decodingSpeed: 7)
+                    encoder.setAttributeQuantization(0, bits: 10)
+                }
                 
                 // Encode the point cloud
                 if let encodedData = encoder.encode(pointCloud) {
+                    // Calculate encoded size
+                    let encodedSize = UInt64(encodedData.count)
+                    
+                    // Calculate compression ratio
+                    let compressionRatio = Double(unencodedSize) / Double(encodedSize)
+                    
+                    // Update totals (synchronized to avoid race conditions)
+                    DispatchQueue.main.async {
+                        self.totalUnencodedBytes += unencodedSize
+                        self.totalEncodedBytes += encodedSize
+                        self.compressionRatios.append(compressionRatio)
+                    }
+                    
+                    // Log compression settings and results
+                    let compressionLevel = pointCount < 5000 ? "Light (12-bit)" : 
+                                          pointCount < 20000 ? "Medium (11-bit)" : "Heavy (10-bit)"
+                    
+                    print("Frame \(self.frameCount): Points: \(points.count), Quantization: \(compressionLevel)")
+                    print("  Size: Unencoded: \(unencodedSize/1024) KB → Encoded: \(encodedSize/1024) KB, Ratio: \(String(format: "%.2f", compressionRatio))x")
+                    
                     // Save the encoded data
                     self.encodedFrames.append((timestamp: timestamp, data: encodedData))
                     
