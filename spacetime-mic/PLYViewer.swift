@@ -1,8 +1,27 @@
 import SwiftUI
-import ARKit
 import SceneKit
 import UniformTypeIdentifiers
 import RealityKit
+
+#if os(iOS)
+import UIKit
+typealias PlatformColor = UIColor
+typealias PlatformViewController = UIViewController
+typealias PlatformGestureRecognizer = UIGestureRecognizer
+typealias PlatformPanGestureRecognizer = UIPanGestureRecognizer
+typealias PlatformPinchGestureRecognizer = UIPinchGestureRecognizer
+typealias PlatformAlertController = UIAlertController
+typealias PlatformAlertAction = UIAlertAction
+#elseif os(macOS)
+import AppKit
+typealias PlatformColor = NSColor
+typealias PlatformViewController = NSViewController
+typealias PlatformGestureRecognizer = NSGestureRecognizer
+typealias PlatformPanGestureRecognizer = NSPanGestureRecognizer
+typealias PlatformPinchGestureRecognizer = NSMagnificationGestureRecognizer
+typealias PlatformAlertController = NSAlert
+typealias PlatformAlertAction = NSAlert.Button
+#endif
 
 extension UTType {
     static var ply: UTType {
@@ -24,11 +43,17 @@ struct PLYViewer: View {
     @State private var plyVideoFrames: [[SIMD3<Float>]] = []
     @State private var currentFrameIndex = 0
     @State private var videoPlaybackTimer: Timer?
+    @State private var showAlert = false
+    @State private var alertTitle = ""
+    @State private var alertMessage = ""
+    @State private var plyVideoPaths: [URL] = []
+    @State private var dracoFiles: [URL] = []
+    @State private var showPLYVideoOptions = false
+    @State private var showDracoFileOptions = false
     
     var body: some View {
         ZStack {
-            ARViewContainer(points: selectedPoints)
-                .edgesIgnoringSafeArea(.all)
+            SceneKitViewContainer(points: selectedPoints)
             
             VStack {
                 if isPlayingPLYVideo {
@@ -569,67 +594,154 @@ struct PLYViewer: View {
     }
 }
 
-struct ARViewContainer: UIViewRepresentable {
+// New SceneKit view container that replaces AR view
+struct SceneKitViewContainer: UIViewRepresentable {
     let points: [SIMD3<Float>]?
     
-    func makeUIView(context: Context) -> ARSCNView {
-        let arView = ARSCNView(frame: .zero)
-        arView.session.delegate = context.coordinator
+    func makeUIView(context: Context) -> SCNView {
+        let sceneView = SCNView(frame: .zero)
+        sceneView.backgroundColor = .black
+        sceneView.scene = SCNScene()
+        sceneView.allowsCameraControl = true // Built-in rotation and pan controls
+        sceneView.autoenablesDefaultLighting = true
         
-        // Configure AR session
-        let configuration = ARWorldTrackingConfiguration()
-        arView.session.run(configuration)
+        #if os(iOS)
+        sceneView.scene?.background.contents = UIColor.black
+        #else
+        sceneView.scene?.background.contents = NSColor.black
+        #endif
         
-        return arView
+        return sceneView
     }
     
-    func updateUIView(_ uiView: ARSCNView, context: Context) {
+    func updateUIView(_ sceneView: SCNView, context: Context) {
         // Clear existing nodes
-        uiView.scene.rootNode.childNodes.forEach { $0.removeFromParentNode() }
+        sceneView.scene?.rootNode.childNodes.forEach { $0.removeFromParentNode() }
         
-        if let points = points {
+        if let points = points, !points.isEmpty {
             // Create point cloud geometry
-            let vertices = points.map { SCNVector3($0.x, $0.y, $0.z) }
-            let geometry = createPointCloudGeometry(from: vertices)
+            // Adjust coordinate mapping to match iOS camera coordinate system
+            // This ensures we maintain the exact perspective from capture
+            let vertices = points.map { point in
+                // Keep original coordinates - preserve the perspective
+                SCNVector3(point.x, point.y, point.z)
+            }
             
-            // Create and add node
-            let node = SCNNode(geometry: geometry)
-            uiView.scene.rootNode.addChildNode(node)
+            let node = createPointCloudNode(from: vertices)
             
-            // Position the point cloud in front of the camera
-            node.position = SCNVector3(0, 0, -1)
+            // Add to scene
+            sceneView.scene?.rootNode.addChildNode(node)
+            
+            // Set up camera
+            setupCamera(for: sceneView, points: vertices)
+            
+            print("Added point cloud with \(points.count) points")
         }
+    }
+    
+    private func createPointCloudNode(from vertices: [SCNVector3]) -> SCNNode {
+        // Create geometry source from vertices
+        let source = SCNGeometrySource(vertices: vertices)
+        
+        // Create indices
+        let indices = (0..<vertices.count).map { UInt32($0) }
+        let indexData = Data(bytes: indices, count: indices.count * MemoryLayout<UInt32>.size)
+        
+        // Create geometry element for points
+        let element = SCNGeometryElement(
+            data: indexData,
+            primitiveType: .point,
+            primitiveCount: vertices.count,
+            bytesPerIndex: MemoryLayout<UInt32>.size
+        )
+        
+        // Create geometry
+        let geometry = SCNGeometry(sources: [source], elements: [element])
+        
+        // Create material
+        let material = SCNMaterial()
+        
+        #if os(iOS)
+        material.diffuse.contents = UIColor.white
+        #else
+        material.diffuse.contents = NSColor.white
+        #endif
+        
+        material.lightingModel = .constant
+        
+        // Set point size (make it larger for visibility)
+        material.setValue(3.0, forKey: "pointSize")
+        
+        geometry.materials = [material]
+        
+        // Create node with geometry
+        let node = SCNNode(geometry: geometry)
+        
+        // Apply rotation to correct the orientation
+        // Rotate 90 degrees clockwise around the Z-axis to counter the counter-clockwise rotation
+        node.eulerAngles = SCNVector3(0, 0, -Float.pi/2)
+        
+        // Apply scale to flip the Z axis to correct backwards appearance
+        node.scale = SCNVector3(1, 1, -1)
+        
+        return node
+    }
+    
+    private func setupCamera(for sceneView: SCNView, points: [SCNVector3]) {
+        // Calculate bounding box
+        var minX: Float = .greatestFiniteMagnitude
+        var minY: Float = .greatestFiniteMagnitude
+        var minZ: Float = .greatestFiniteMagnitude
+        var maxX: Float = -.greatestFiniteMagnitude
+        var maxY: Float = -.greatestFiniteMagnitude
+        var maxZ: Float = -.greatestFiniteMagnitude
+        
+        for point in points {
+            minX = min(minX, point.x)
+            maxX = max(maxX, point.x)
+            minY = min(minY, point.y)
+            maxY = max(maxY, point.y)
+            minZ = min(minZ, point.z)
+            maxZ = max(maxZ, point.z)
+        }
+        
+        // Calculate center
+        let centerX = (minX + maxX) / 2
+        let centerY = (minY + maxY) / 2
+        let centerZ = (minZ + maxZ) / 2
+        
+        // Calculate dimensions
+        let sizeX = max(abs(maxX - minX), 0.1)
+        let sizeY = max(abs(maxY - minY), 0.1)
+        let sizeZ = max(abs(maxZ - minZ), 0.1)
+        
+        let maxDimension = max(max(sizeX, sizeY), sizeZ)
+        
+        // Create and position camera to match capture device perspective
+        // We need to match exactly how the camera was positioned during capture
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        
+        // Position camera at a distance from the point cloud
+        // Use original camera position from depth capture - looking along negative Z axis
+        cameraNode.position = SCNVector3(centerX, centerY, centerZ + maxDimension * 1.5)
+        
+        // Look directly at the center of the point cloud
+        cameraNode.look(at: SCNVector3(centerX, centerY, centerZ))
+        
+        // Add to scene
+        sceneView.scene?.rootNode.addChildNode(cameraNode)
+        sceneView.pointOfView = cameraNode
     }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
     
-    private func createPointCloudGeometry(from vertices: [SCNVector3]) -> SCNGeometry {
-        let source = SCNGeometrySource(vertices: vertices)
+    class Coordinator: NSObject {
+        var parent: SceneKitViewContainer
         
-        // Create array of indices and convert to Data
-        let indices = (0..<vertices.count).map { UInt32($0) }
-        let data = Data(bytes: indices, count: indices.count * MemoryLayout<UInt32>.size)
-        
-        let element = SCNGeometryElement(data: data,
-                                       primitiveType: .point,
-                                       primitiveCount: vertices.count,
-                                       bytesPerIndex: MemoryLayout<UInt32>.size)
-        
-        let geometry = SCNGeometry(sources: [source], elements: [element])
-        let material = SCNMaterial()
-        material.diffuse.contents = UIColor.white
-        material.setValue(5.0, forKey: "pointSize")
-        geometry.materials = [material]
-        
-        return geometry
-    }
-    
-    class Coordinator: NSObject, ARSessionDelegate {
-        var parent: ARViewContainer
-        
-        init(_ parent: ARViewContainer) {
+        init(_ parent: SceneKitViewContainer) {
             self.parent = parent
         }
     }
