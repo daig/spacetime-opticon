@@ -1,20 +1,19 @@
 import SwiftUI
 import AVFoundation
-import UIKit
-import ARKit
 
 struct VideoRecordingView: View {
     @State private var isRecording = false
+    @State private var isPLYVideoRecording = false // New state for PLY video recording
     @State private var depthImage: UIImage?
     @State private var pointCloud: [SIMD3<Float>]? // New state for point cloud
     @State private var hasCameraPermission = false
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             Text("Depth Camera")
                 .font(.title)
-                .padding()
+                .padding(.top)
 
             if let errorMessage = errorMessage {
                 Text(errorMessage)
@@ -23,9 +22,10 @@ struct VideoRecordingView: View {
             }
 
             if hasCameraPermission {
+                // Camera View
                 ZStack {
                     ARSceneDepthView(isRecording: $isRecording, depthImage: $depthImage, pointCloud: $pointCloud)
-                        .frame(maxWidth: .infinity, maxHeight: 400)
+                        .frame(maxWidth: .infinity, maxHeight: 300)
                         .cornerRadius(12)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
@@ -36,7 +36,7 @@ struct VideoRecordingView: View {
                         Image(uiImage: depthImage)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: 400)
+                            .frame(maxWidth: .infinity, maxHeight: 300)
                             .cornerRadius(12)
                             .opacity(0.7)
                             .blendMode(.overlay)
@@ -45,25 +45,49 @@ struct VideoRecordingView: View {
                 }
                 .padding(.horizontal)
 
-                Button(action: { isRecording.toggle() }) {
-                    Image(systemName: isRecording ? "stop.circle" : "video.circle")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 60, height: 60)
-                        .foregroundColor(isRecording ? .red : .accentColor)
-                }
-                .padding()
-
-                Text(isRecording ? "Recording..." : "Ready")
-                    .foregroundColor(isRecording ? .red : .primary)
-                    .padding()
-
+                // Point count information
                 if let pointCloud = pointCloud {
                     Text("Points: \(pointCloud.count)")
                         .foregroundColor(.gray)
+                        .padding(.top, 4)
                 }
+                
+                // Recording Controls
+                VStack(spacing: 16) {
+                    // Video Recording Button
+                    Button(action: { isRecording.toggle() }) {
+                        VStack {
+                            Image(systemName: isRecording ? "stop.circle" : "video.circle")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 50, height: 50)
+                                .foregroundColor(isRecording ? .red : .accentColor)
+                            
+                            Text(isRecording ? "Stop" : "Record")
+                                .font(.caption)
+                                .foregroundColor(isRecording ? .red : .primary)
+                        }
+                    }
+                    
+                    // PLY Video Recording Button
+                    Button(action: { togglePLYVideoRecording() }) {
+                        VStack {
+                            Image(systemName: isPLYVideoRecording ? "stop.fill" : "record.circle")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 50, height: 50)
+                                .foregroundColor(isPLYVideoRecording ? .red : .blue)
+                            
+                            Text(isPLYVideoRecording ? "Stop PLY" : "Record PLY")
+                                .font(.caption)
+                                .foregroundColor(isPLYVideoRecording ? .red : .blue)
+                        }
+                    }
+                }
+                .padding(.vertical, 12)
 
-                HStack(spacing: 15) {
+                // Save Buttons - Horizontal Layout
+                HStack(spacing: 20) {
                     Button(action: {
                         if let pointCloud = pointCloud {
                             savePointCloudToFile(points: pointCloud)
@@ -71,11 +95,15 @@ struct VideoRecordingView: View {
                             print("No point cloud available")
                         }
                     }) {
-                        HStack {
+                        VStack {
                             Image(systemName: "doc.text")
-                            Text("Save as PLY")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 24, height: 24)
+                            Text("Save PLY")
+                                .font(.caption)
                         }
-                        .padding(.horizontal, 12)
+                        .frame(width: 80)
                         .padding(.vertical, 8)
                         .background(Color.blue.opacity(0.2))
                         .cornerRadius(8)
@@ -88,29 +116,70 @@ struct VideoRecordingView: View {
                             print("No point cloud available")
                         }
                     }) {
-                        HStack {
+                        VStack {
                             Image(systemName: "doc.zipper")
-                            Text("Save Compressed")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 24, height: 24)
+                            Text("Save Draco")
+                                .font(.caption)
                         }
-                        .padding(.horizontal, 12)
+                        .frame(width: 80)
                         .padding(.vertical, 8)
                         .background(Color.green.opacity(0.2))
                         .cornerRadius(8)
                     }
                 }
                 .padding(.horizontal)
+                
+                // Add extra space at the bottom to avoid tab bar overlap
+                Spacer()
+                    .frame(height: 60)
+                
             } else {
+                // Permission Request
                 Button("Request Camera Permission") {
                     requestCameraPermission()
                 }
                 .padding()
+                
+                Spacer()
             }
-
-            Spacer()
         }
         .padding()
         .onAppear {
             checkCameraPermission()
+            // Set up notification observers
+            NotificationCenter.default.addObserver(forName: .captureVideoFrame, object: nil, queue: .main) { _ in
+                captureCurrentFrame()
+            }
+            
+            // Set up observer for point cloud frame
+            NotificationCenter.default.addObserver(forName: .pointCloudFrameAvailable, object: nil, queue: .main) { notification in
+                if let points = notification.userInfo?["pointCloud"] as? [SIMD3<Float>] {
+                    if isPLYVideoRecording {
+                        capturePLYVideoFrame(points: points)
+                    }
+                }
+            }
+        }
+    }
+
+    // Function to toggle PLY video recording
+    private func togglePLYVideoRecording() {
+        isPLYVideoRecording.toggle()
+        
+        if isPLYVideoRecording {
+            startPLYVideoRecording()
+        } else {
+            stopPLYVideoRecording()
+        }
+    }
+    
+    // Function to capture the current frame for PLY video
+    private func captureCurrentFrame() {
+        if isPLYVideoRecording, let currentPoints = pointCloud {
+            capturePLYVideoFrame(points: currentPoints)
         }
     }
 
@@ -139,5 +208,4 @@ struct VideoRecordingView: View {
             }
         }
     }
-    
 }

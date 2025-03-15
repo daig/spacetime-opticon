@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 // No need to import spacetime_mic as we're already within it
 // The bridging header brings in the Draco wrappers to the entire project
 
@@ -110,4 +111,138 @@ extension VideoRecordingView {
             }
         }
     }
+    
+    // Data structure to store frames for PLY video recording
+    class PLYVideoBuffer {
+        var frames: [(timestamp: Date, points: [SIMD3<Float>])] = []
+        var isRecording = false
+        var recordingStartTime: Date?
+        var timer: Timer?
+        
+        func startRecording() {
+            isRecording = true
+            frames = []
+            recordingStartTime = Date()
+            // Set up timer to capture frames at regular intervals
+            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                self?.requestFrame()
+            }
+        }
+        
+        func stopRecording() {
+            isRecording = false
+            timer?.invalidate()
+            timer = nil
+        }
+        
+        func addFrame(points: [SIMD3<Float>]) {
+            if isRecording {
+                frames.append((timestamp: Date(), points: points))
+            }
+        }
+        
+        func requestFrame() {
+            // This function will be called by the timer
+            // The actual frame addition will be handled by addFrame when a new point cloud is available
+            NotificationCenter.default.post(name: .captureVideoFrame, object: nil)
+        }
+    }
+    
+    // Singleton video buffer to be accessed throughout the app
+    static var plyVideoBuffer = PLYVideoBuffer()
+    
+    // Start PLY video recording
+    func startPLYVideoRecording() {
+        VideoRecordingView.plyVideoBuffer.startRecording()
+    }
+    
+    // Stop PLY video recording and save the result
+    func stopPLYVideoRecording() {
+        VideoRecordingView.plyVideoBuffer.stopRecording()
+        savePLYVideo(frames: VideoRecordingView.plyVideoBuffer.frames)
+    }
+    
+    // Add the current frame to the video buffer
+    func capturePLYVideoFrame(points: [SIMD3<Float>]) {
+        VideoRecordingView.plyVideoBuffer.addFrame(points: points)
+    }
+    
+    // Save a collection of frames as a PLY video archive
+    private func savePLYVideo(frames: [(timestamp: Date, points: [SIMD3<Float>])]) {
+        guard !frames.isEmpty else { 
+            print("No frames to save")
+            return
+        }
+        
+        DispatchQueue.global(qos: .background).async {
+            let fileManager = FileManager.default
+            guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                print("Could not access documents directory")
+                return
+            }
+            
+            // Create a directory to store the PLY video
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
+            let timestamp = dateFormatter.string(from: Date())
+            let dirName = "plyVideo_\(timestamp)"
+            let dirURL = documentsDirectory.appendingPathComponent(dirName)
+            
+            do {
+                try fileManager.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil)
+                
+                // Create a metadata file
+                let metadataURL = dirURL.appendingPathComponent("metadata.json")
+                let metadata: [String: Any] = [
+                    "frameCount": frames.count,
+                    "recordingDate": timestamp,
+                    "frameRate": 1.0 // 1 frame per second
+                ]
+                
+                let metadataData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
+                try metadataData.write(to: metadataURL)
+                
+                // Save each frame as a separate PLY file
+                for (index, frame) in frames.enumerated() {
+                    let plyString = self.pointCloudToPLY(points: frame.points)
+                    let frameFileName = String(format: "frame_%04d.ply", index)
+                    let frameFileURL = dirURL.appendingPathComponent(frameFileName)
+                    try plyString.write(to: frameFileURL, atomically: true, encoding: .utf8)
+                }
+                
+                print("PLY video saved to \(dirURL)")
+                
+                // Show a notification to the user
+                DispatchQueue.main.async {
+                    let notification = UINotificationFeedbackGenerator()
+                    notification.notificationOccurred(.success)
+                    
+                    // Create an alert to show the path
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootViewController = windowScene.windows.first?.rootViewController {
+                        let alert = UIAlertController(
+                            title: "PLY Video Saved",
+                            message: "The PLY video has been saved to:\n\(dirName)",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "OK", style: .default))
+                        rootViewController.present(alert, animated: true)
+                    }
+                }
+                
+            } catch {
+                print("Error saving PLY video: \(error)")
+                
+                DispatchQueue.main.async {
+                    let notification = UINotificationFeedbackGenerator()
+                    notification.notificationOccurred(.error)
+                }
+            }
+        }
+    }
+}
+
+// Define notification names
+extension Notification.Name {
+    static let captureVideoFrame = Notification.Name("captureVideoFrame")
 }

@@ -17,6 +17,7 @@ struct ARSceneDepthView: UIViewRepresentable {
         let commandQueue: MTLCommandQueue
         let pipelineState: MTLComputePipelineState
         var textureCache: CVMetalTextureCache?
+        var notificationObserver: NSObjectProtocol?
 
         static let ciContext = CIContext()
         static let colorKernel: CIColorKernel = {
@@ -36,6 +37,16 @@ struct ARSceneDepthView: UIViewRepresentable {
             let function = library.makeFunction(name: "generatePoints")!
             self.pipelineState = try! device.makeComputePipelineState(function: function)
             CVMetalTextureCacheCreate(nil, nil, device, nil, &textureCache)
+            
+            // Set up notification observer for frame capturing
+            self.notificationObserver = nil
+        }
+        
+        deinit {
+            // Clean up notification observer
+            if let observer = notificationObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
         }
 
         func session(_ session: ARSession, didUpdate frame: ARFrame) {
@@ -158,7 +169,26 @@ struct ARSceneDepthView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(self)
+        let coordinator = Coordinator(self)
+        
+        // Add notification observer for frame capture
+        coordinator.notificationObserver = NotificationCenter.default.addObserver(
+            forName: .captureVideoFrame,
+            object: nil,
+            queue: .main
+        ) { [weak coordinator] _ in
+            // When notification is received, ensure we have a point cloud to capture
+            if let currentPoints = coordinator?.parent.pointCloud {
+                // Notify our VideoRecordingView to capture the frame
+                NotificationCenter.default.post(
+                    name: .pointCloudFrameAvailable,
+                    object: nil,
+                    userInfo: ["pointCloud": currentPoints]
+                )
+            }
+        }
+        
+        return coordinator
     }
 
     func makeUIView(context: Context) -> ARView {
@@ -175,4 +205,9 @@ struct ARSceneDepthView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {}
+}
+
+// Add additional notification
+extension Notification.Name {
+    static let pointCloudFrameAvailable = Notification.Name("pointCloudFrameAvailable")
 }
