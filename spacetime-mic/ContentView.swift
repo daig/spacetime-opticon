@@ -1,3 +1,10 @@
+//
+// ContentView.swift
+// spacetime-mic
+//
+// iOS-only application for AR-based depth capture and audio recording
+//
+
 import SwiftUI
 import AVFoundation
 import Combine

@@ -6,11 +6,7 @@
 //
 
 import Foundation
-#if os(iOS)
 import UIKit
-#elseif os(macOS)
-import AppKit
-#endif
 
 // No need to import spacetime_mic as we're already within it
 // The bridging header brings in the Draco wrappers to the entire project
