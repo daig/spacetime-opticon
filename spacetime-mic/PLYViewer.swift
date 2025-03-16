@@ -3,25 +3,7 @@ import SceneKit
 import UniformTypeIdentifiers
 import RealityKit
 
-#if os(iOS)
 import UIKit
-typealias PlatformColor = UIColor
-typealias PlatformViewController = UIViewController
-typealias PlatformGestureRecognizer = UIGestureRecognizer
-typealias PlatformPanGestureRecognizer = UIPanGestureRecognizer
-typealias PlatformPinchGestureRecognizer = UIPinchGestureRecognizer
-typealias PlatformAlertController = UIAlertController
-typealias PlatformAlertAction = UIAlertAction
-#elseif os(macOS)
-import AppKit
-typealias PlatformColor = NSColor
-typealias PlatformViewController = NSViewController
-typealias PlatformGestureRecognizer = NSGestureRecognizer
-typealias PlatformPanGestureRecognizer = NSPanGestureRecognizer
-typealias PlatformPinchGestureRecognizer = NSMagnificationGestureRecognizer
-typealias PlatformAlertController = NSAlert
-typealias PlatformAlertAction = NSAlert.Button
-#endif
 
 extension UTType {
     static var ply: UTType {
@@ -481,7 +463,6 @@ struct PLYViewer: View {
     
     // Helper method to show alerts with platform-specific implementations
     private func showAlert(title: String, message: String) {
-        #if os(iOS)
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let rootViewController = windowScene.windows.first?.rootViewController {
             let alert = UIAlertController(
@@ -492,20 +473,12 @@ struct PLYViewer: View {
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             rootViewController.present(alert, animated: true)
         }
-        #elseif os(macOS)
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-        #endif
     }
     
     // New method to show a menu of available Draco PLY videos
     private func showDracoPLYVideoSelectionMenu(videos: [URL]) {
         guard !videos.isEmpty else { return }
         
-        #if os(iOS)
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let rootViewController = windowScene.windows.first?.rootViewController {
             
@@ -528,31 +501,6 @@ struct PLYViewer: View {
             
             rootViewController.present(alert, animated: true)
         }
-        #elseif os(macOS)
-        // On macOS create a panel or use NSPopover to display options
-        let alert = NSAlert()
-        alert.messageText = "Select Draco PLY Video"
-        alert.informativeText = "Choose a Draco-encoded PLY video to play:"
-        
-        // Create a popup button with options
-        let popupButton = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        for video in videos {
-            popupButton.addItem(withTitle: video.lastPathComponent)
-        }
-        alert.accessoryView = popupButton
-        
-        // Add buttons
-        alert.addButton(withTitle: "Load")
-        alert.addButton(withTitle: "Cancel")
-        
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn && popupButton.indexOfSelectedItem >= 0 {
-            // User clicked "Load"
-            let selectedIndex = popupButton.indexOfSelectedItem
-            let selectedVideo = videos[selectedIndex]
-            self.loadDracoPLYVideo(from: selectedVideo)
-        }
-        #endif
     }
     
     // Method to load and play a Draco-encoded PLY video
@@ -615,11 +563,7 @@ struct SceneKitViewContainer: UIViewRepresentable {
         sceneView.scene?.rootNode.addChildNode(cameraNode)
         sceneView.pointOfView = cameraNode
         
-        #if os(iOS)
         sceneView.scene?.background.contents = UIColor.black
-        #else
-        sceneView.scene?.background.contents = NSColor.black
-        #endif
         
         return sceneView
     }
@@ -685,11 +629,7 @@ struct SceneKitViewContainer: UIViewRepresentable {
         // Create material
         let material = SCNMaterial()
         
-        #if os(iOS)
         material.diffuse.contents = UIColor.white
-        #else
-        material.diffuse.contents = NSColor.white
-        #endif
         
         material.lightingModel = .constant
         
