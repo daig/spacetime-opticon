@@ -163,9 +163,8 @@ class ViewPLYViewController: UIViewController {
     }
     
     private func loadDracoFile(url: URL) {
-        // Use our VideoRecordingView extension to load Draco file
-        let videoRecordingView = VideoRecordingView()
-        if let points = videoRecordingView.loadDracoPointCloudFromFile(url: url) {
+        // Use DracoService to load the file
+        if let points = DracoService.shared.loadDracoPointCloudFromFile(url: url) {
             // Update UI
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
