@@ -339,43 +339,20 @@ struct PLYViewer: View {
     
     // Function to load a Draco file and display the points
     private func loadDracoFile(from url: URL) {
-        // Define a class to hold persistent references to objects
-        // This ensures our memory stays alive throughout the whole operation
-        class DecoderContext {
-            let data: Data
-            let decoder = DracoDecoder()
-            var pointCloud: DracoPointCloud?
-            var positionData: Data?
-            
-            init(data: Data) {
-                self.data = data
-            }
-        }
-        
         DispatchQueue.global(qos: .userInitiated).async {
             // Create a separate autorelease pool for this work
             autoreleasepool {
                 do {
                     // First verify the file exists and is readable
-                    let originalData = try Data(contentsOf: url)
-                    print("[Draco] Successfully read file: \(url.lastPathComponent), size: \(originalData.count) bytes")
+                    print("[Draco] Loading file: \(url.lastPathComponent)")
                     
-                    // Create our context object to hold strong references
-                    let context = DecoderContext(data: originalData)
-                    
-                    // Step 1: Create a VideoRecordingView to use its helper methods
-                    // This is safer as it's already working in other parts of the app
-                    let videoRecordingView = VideoRecordingView()
-                    print("[Draco] Created VideoRecordingView for file loading")
-                    
-                    // Step 2: Use the VideoRecordingView's established method to load the file
-                    print("[Draco] Attempting to load points from file...")
-                    guard let points = videoRecordingView.loadDracoPointCloudFromFile(url: url) else {
+                    // Use DracoService to load the points
+                    guard let points = DracoService.shared.loadDracoPointCloudFromFile(url: url) else {
                         throw NSError(domain: "DracoDecoding", code: 1, 
                                     userInfo: [NSLocalizedDescriptionKey: "Failed to load Draco file (null result)"])
                     }
                     
-                    // Step 3: Make a copy of the points array to ensure memory safety
+                    // Make a copy of the points array to ensure memory safety
                     let pointsCopy = Array(points)
                     print("[Draco] Successfully loaded \(pointsCopy.count) points")
                     
@@ -507,11 +484,8 @@ struct PLYViewer: View {
     private func loadDracoPLYVideo(from bundleURL: URL) {
         print("Loading Draco PLY video from: \(bundleURL.path)")
         
-        // Create a VideoRecordingView to use its Draco decoding functionality
-        let videoRecordingView = VideoRecordingView()
-        
-        // Load the Draco-encoded frames
-        videoRecordingView.loadDracoPLYVideoBundle(from: bundleURL) { frames in
+        // Use DracoService to load the video bundle
+        DracoService.shared.loadDracoPLYVideoBundle(from: bundleURL) { frames in
             if let frames = frames, !frames.isEmpty {
                 print("Successfully loaded \(frames.count) Draco-encoded frames")
                 self.plyVideoFrames = frames

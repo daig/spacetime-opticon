@@ -111,7 +111,7 @@ struct VideoRecordingView: View {
                     
                     Button(action: {
                         if let pointCloud = pointCloud {
-                            savePointCloudToDracoFile(points: pointCloud)
+                            DracoService.shared.savePointCloudToDracoFile(points: pointCloud)
                         } else {
                             print("No point cloud available")
                         }
@@ -213,4 +213,4 @@ struct VideoRecordingView: View {
             }
         }
     }
-}
+} 
