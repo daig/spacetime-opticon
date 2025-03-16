@@ -190,12 +190,18 @@ extension VideoRecordingView {
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
             let timestamp = dateFormatter.string(from: Date())
-            let drcDirName = "plyVideo_\(timestamp).drc.bundle"
-            let drcDirURL = documentsDirectory.appendingPathComponent(drcDirName)
+            let drcDirName = "plyVideo_\(timestamp).drcpack"
+            var drcDirURL = documentsDirectory.appendingPathComponent(drcDirName)
             
             do {
                 // Create directory
                 try fileManager.createDirectory(at: drcDirURL, withIntermediateDirectories: true, attributes: nil)
+                
+                // Set package bit to make it appear as a package/bundle
+                var resourceValues = URLResourceValues()
+                resourceValues.isPackage = true
+                try drcDirURL.setResourceValues(resourceValues)
+                
                 outputDirectory = drcDirURL
                 print("Created output directory: \(drcDirURL.path)")
             } catch {

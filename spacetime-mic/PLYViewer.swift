@@ -17,15 +17,15 @@ extension UTType {
     }
     
     static var drcPlyVideo: UTType {
-        // Register a type for Draco-encoded PLY video bundles
-        UTType(exportedAs: "com.spacetime-mic.drcplyvideo", 
-               conformingTo: .directory)
+        // Register a type for Draco-encoded PLY video packages
+        UTType(exportedAs: "com.spacetime-mic.drcpack", 
+               conformingTo: .package)
     }
 }
 
 struct PLYViewer: View {
     @State private var showFilePicker = false
-    @State private var showDirectoryPicker = false
+    @State private var showVideoFilePicker = false  // New state for video picker
     @State private var selectedPoints: [SIMD3<Float>]?
     @State private var isPlayingPLYVideo = false
     @State private var plyVideoFrames: [[SIMD3<Float>]] = []
@@ -80,8 +80,7 @@ struct PLYViewer: View {
                     }
                     
                     Button(action: {
-                        // Load Draco PLY video bundles
-                        openDracoPLYVideoDirectoryPicker()
+                        showVideoFilePicker = true
                     }) {
                         Text("Load PLY Video")
                             .foregroundColor(.white)
@@ -108,15 +107,25 @@ struct PLYViewer: View {
                 loadPLYFile(from: url)
             }
         }
+        .sheet(isPresented: $showVideoFilePicker) {
+            DocumentPicker(contentTypes: [.drcPlyVideo]) { url in
+                loadDracoPLYVideo(from: url)
+            }
+        }
     }
     
     private func loadPLYFile(from url: URL) {
-        do {
-            let contents = try String(contentsOf: url, encoding: .utf8)
-            let points = parsePLYFile(contents)
-            selectedPoints = points
-        } catch {
-            print("Error loading PLY file: \(error)")
+        if url.pathExtension == "drcpack" {
+            loadDracoPLYVideo(from: url)
+        } else {
+            do {
+                let contents = try String(contentsOf: url, encoding: .utf8)
+                let points = parsePLYFile(contents)
+                selectedPoints = points
+            } catch {
+                print("Error loading PLY file: \(error)")
+                showAlert(title: "Error", message: "Failed to load PLY file: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -393,7 +402,7 @@ struct PLYViewer: View {
         }
     }
     
-    // New method to open picker for Draco-encoded PLY video bundles
+    // New method to open picker for Draco-encoded PLY video packages
     private func openDracoPLYVideoDirectoryPicker() {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -404,16 +413,17 @@ struct PLYViewer: View {
                 }
                 
                 // Get list of directories in the Documents folder
-                let contents = try fileManager.contentsOfDirectory(at: documentsDirectory, includingPropertiesForKeys: [.isDirectoryKey], options: [])
+                let contents = try fileManager.contentsOfDirectory(at: documentsDirectory, includingPropertiesForKeys: [.isDirectoryKey, .isPackageKey], options: [])
                 
-                // Filter for only directories that match our naming pattern for Draco PLY video bundles
+                // Filter for only directories that are packages with our extension
                 var dracoPLYVideoPaths: [URL] = []
                 
                 for url in contents {
-                    let resourceValues = try url.resourceValues(forKeys: [.isDirectoryKey])
+                    let resourceValues = try url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
                     let isDirectory = resourceValues.isDirectory ?? false
+                    let isPackage = resourceValues.isPackage ?? false
                     
-                    if isDirectory && url.lastPathComponent.contains(".drc.bundle") {
+                    if isDirectory && isPackage && url.pathExtension == "drcpack" {
                         dracoPLYVideoPaths.append(url)
                     }
                 }
@@ -421,7 +431,7 @@ struct PLYViewer: View {
                 DispatchQueue.main.async {
                     if dracoPLYVideoPaths.isEmpty {
                         self.showAlert(title: "No Draco PLY Videos Found", 
-                                       message: "No Draco-encoded PLY video folders were found in your Documents directory. Record a PLY video first.")
+                                       message: "No Draco-encoded PLY video packages were found in your Documents directory. Record a PLY video first.")
                     } else {
                         // Show list of available Draco PLY videos
                         self.showDracoPLYVideoSelectionMenu(videos: dracoPLYVideoPaths)
@@ -481,18 +491,18 @@ struct PLYViewer: View {
     }
     
     // Method to load and play a Draco-encoded PLY video
-    private func loadDracoPLYVideo(from bundleURL: URL) {
-        print("Loading Draco PLY video from: \(bundleURL.path)")
+    private func loadDracoPLYVideo(from url: URL) {
+        print("Loading Draco PLY video from: \(url.path)")
         
         // Use DracoService to load the video bundle
-        DracoService.shared.loadDracoPLYVideoBundle(from: bundleURL) { frames in
+        DracoService.shared.loadDracoPLYVideoBundle(from: url) { frames in
             if let frames = frames, !frames.isEmpty {
                 print("Successfully loaded \(frames.count) Draco-encoded frames")
                 self.plyVideoFrames = frames
                 self.isDracoEncodedVideo = true
                 
                 // Find metadata file to get frame rate
-                let metadataURL = bundleURL.appendingPathComponent("metadata.json")
+                let metadataURL = url.appendingPathComponent("metadata.json")
                 var frameRate: Double = 1.0
                 
                 // Safely read metadata without throwing
@@ -508,7 +518,7 @@ struct PLYViewer: View {
                 // Show error to user
                 DispatchQueue.main.async {
                     self.showAlert(title: "Error",
-                                   message: "Failed to load Draco PLY video from \(bundleURL.lastPathComponent)")
+                                   message: "Failed to load Draco PLY video from \(url.lastPathComponent)")
                 }
             }
         }
@@ -685,7 +695,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
     let contentTypes: [UTType]
     let onPick: (URL) -> Void
     
-    init(contentTypes: [UTType] = [.ply], onPick: @escaping (URL) -> Void) {
+    init(contentTypes: [UTType] = [.ply, .drcPlyVideo], onPick: @escaping (URL) -> Void) {
         self.contentTypes = contentTypes
         self.onPick = onPick
     }

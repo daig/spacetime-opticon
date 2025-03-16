@@ -17,9 +17,22 @@
 		CC06220D2D7F20AD00446469 /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CC001CAC2D8684CD00F76BE8 /* Exceptions for "spacetime-mic" folder in "spacetime-mic" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CC0621C32D7E183900446469 /* spacetime-mic */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CC0621C62D7E183900446469 /* spacetime-mic */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CC001CAC2D8684CD00F76BE8 /* Exceptions for "spacetime-mic" folder in "spacetime-mic" target */,
+			);
 			path = "spacetime-mic";
 			sourceTree = "<group>";
 		};
@@ -291,6 +304,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/draco";
+				INFOPLIST_FILE = "spacetime-mic/Info.plist";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture depth data for AR functionality.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs access to the microphone to record audio from your external audio interface.";
@@ -341,6 +355,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/draco";
+				INFOPLIST_FILE = "spacetime-mic/Info.plist";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture depth data for AR functionality.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app needs access to the microphone to record audio from your external audio interface.";
